@@ -234,10 +234,59 @@ integrity_cleanup(Path) :-
   ( exists_file(Path) -> delete_file(Path) ; true ).
 
 
+%! with_file_integrity(+Policy, :Goal) is semidet.
+%
+% Run Goal with config:file_integrity/1 set to Policy, restoring the
+% configured facts afterwards. The tests run in standalone mode, which
+% has no per-mode override, so Policy is the effective policy.
+
+with_file_integrity(Policy, Goal) :-
+  findall(P, config:file_integrity(P), Saved),
+  setup_call_cleanup(
+    ( retractall(config:file_integrity(_)),
+      assertz(config:file_integrity(Policy))
+    ),
+    Goal,
+    ( retractall(config:file_integrity(_)),
+      forall(member(P, Saved), assertz(config:file_integrity(P)))
+    )).
+
+
+%! integrity_tampered_file(-Path) is det.
+%
+% Create a temp file with a SHA-256 sidecar, then change its contents so
+% the sidecar no longer matches.
+
+integrity_tampered_file(Path) :-
+  tmp_file(sanitize_integrity, Path),
+  setup_call_cleanup(
+    open(Path, write, S),
+    format(S, 'hello~n', []),
+    close(S)),
+  sanitize:write_sha256_sidecar(Path),
+  setup_call_cleanup(
+    open(Path, write, S2),
+    format(S2, 'tampered~n', []),
+    close(S2)).
+
+
 :- begin_tests(sanitize_file_integrity).
 
-test(effective_default_prefer) :-
-  sanitize:effective_file_integrity(prefer).
+test(effective_follows_global_policy) :-
+  with_file_integrity(off, sanitize:effective_file_integrity(off)),
+  with_file_integrity(prefer, sanitize:effective_file_integrity(prefer)).
+
+test(configured_off_skips_verification) :-
+  setup_call_cleanup(
+    integrity_tampered_file(Path),
+    with_file_integrity(off, sanitize:ensure_file_integrity(Path)),
+    integrity_cleanup(Path)).
+
+test(configured_prefer_rejects_tampered, [fail]) :-
+  setup_call_cleanup(
+    integrity_tampered_file(Path),
+    with_file_integrity(prefer, sanitize:ensure_file_integrity(Path)),
+    integrity_cleanup(Path)).
 
 test(require_with_sidecar) :-
   tmp_file(sanitize_integrity, Path),

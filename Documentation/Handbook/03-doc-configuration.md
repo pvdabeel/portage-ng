@@ -116,7 +116,7 @@ LLM integration is entirely optional.  If you do not need `--explain`, `--llm`, 
 | `config:llm_use_tools/1` | `true` | Whether the LLM may execute Prolog code locally during a conversation. |
 | `config:llm_server_calls/1` | `false` | Allow Pengines clients to call `explainer:call_llm/3` on the server (uses server API keys). |
 | `config:curl_allow_http/1` | `false` | Permit cleartext http distfile mirrors (ftp never allowed). |
-| `config:file_integrity/1` | `prefer` | Knowledge sidecar policy: `prefer`, `require`, or `off`. |
+| `config:file_integrity/1` | `off` | Knowledge sidecar verification at load: `off`, `prefer`, or `require`. Server and daemon modes always use `require` (`config:file_integrity_mode/2`). |
 
 Most settings have sensible defaults.  For a typical Gentoo system, the main items to configure are `config:gentoo_profile/1`, `config:portage_confdir/1`, and the repository definitions in the machine config file.
 

@@ -136,11 +136,17 @@ Materialized preference state is written to `Knowledge/preference.qlf` via
 %
 % When a valid `Knowledge/preference.qlf` stamp matches current inputs,
 % reloads the materialized preference state instead of rebuilding it.
+%
+% A rebuild queries the metadata table, so it first waits for the
+% start-up index warm-up (knowledgebase:join_metadata_warmer/0, a no-op
+% when no warm-up is running). A query that overlaps the warm-up makes
+% SWI-Prolog build further indexes of its own.
 
 preference:init :-
   ( preference:cache_try_load ->
       !
-  ; preference:init_fresh,
+  ; knowledgebase:join_metadata_warmer,
+    preference:init_fresh,
     preference:cache_save
   ).
 

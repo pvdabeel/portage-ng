@@ -543,6 +543,21 @@ test(feedback_module_full_coverage, [nondet]) :-
       qt_rm_rf(TmpDir)
     )).
 
+test(with_index_ratio_sets_and_restores_flag) :-
+  current_prolog_flag(ci_min_speedup_ratio, Old),
+  Raised is Old + 17.0,
+  knowledgebase:with_index_ratio(Raised,
+    current_prolog_flag(ci_min_speedup_ratio, SeenInside)),
+  assertion(SeenInside =:= Raised),
+  assertion(current_prolog_flag(ci_min_speedup_ratio, Old)),
+  % A failing probe still succeeds and restores the flag.
+  knowledgebase:with_index_ratio(Raised, fail),
+  assertion(current_prolog_flag(ci_min_speedup_ratio, Old)),
+  % So does a throwing one, after passing the exception on.
+  catch(knowledgebase:with_index_ratio(Raised, throw(qt_probe_error)),
+        qt_probe_error, true),
+  assertion(current_prolog_flag(ci_min_speedup_ratio, Old)).
+
 test(knowledgebase_and_repository_full_coverage, [nondet]) :-
   qt_mktemp(kb_repo_cov, TmpDir),
   os:compose_path(TmpDir, 'Knowledge', KDir),

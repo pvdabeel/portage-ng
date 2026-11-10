@@ -40,9 +40,11 @@ without it, no amount of clever proving would feel fast enough.
 `--sync`) and `Knowledge/preference.qlf` (materialized preference state after
 `preference:init/0`, built on first startup and invalidated by `--sync` or input
 changes) further reduce startup work.  After `kb.qlf` loads, `knowledgebase:load/0`
-also primes the JIT index on `cache:entry_metadata/4` for slotted profile-mask
-lookups so the first `preference:init/0` does not pay a multi-second penalty on
-atoms such as `dev-qt/qtimageformats:5`.
+also primes the (entry, key) JIT index on `cache:entry_metadata/4` in a
+background thread.  Start-up waits for that thread before the first request, and
+`preference:init/0` waits for it before a rebuild, so no query overlaps the index
+build: a query that does makes SWI-Prolog build a second index of its own, which
+costs seconds and about 75 MB on a full tree.
 
 
 ## Pillar 2: Goal expansion macros

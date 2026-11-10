@@ -1023,22 +1023,32 @@ config:curl_allow_http(false).
 %
 % Integrity policy for Knowledge sidecars (kb.qlf, profile.qlf,
 % preference.qlf, resume.pl, feedback.pl):
+%   * off     — skip verification (default)
 %   * prefer  — verify .sha256 when present; warn and load when absent
 %   * require — refuse to load without a matching .sha256 sidecar
-%   * off     — skip verification
-% Sidecars are written on every save/append by the corresponding writers.
+% Verification hashes each file on every start (one openssl process per
+% file, kb.qlf included), so it is opt-in. Sidecars are written on every
+% save/append by the corresponding writers whatever the policy, so it
+% can be switched on without regenerating anything.
 % This global policy is the default; config:file_integrity_mode/2
 % overrides it per operating mode (see sanitize:effective_file_integrity/1).
+% To enable it on a host, in Source/Config/<host>.local.pl:
+%
+%   :- retractall(config:file_integrity(_)).
+%   config:file_integrity(prefer).
 
-config:file_integrity(prefer).
+:- dynamic config:file_integrity/1.
+:- multifile config:file_integrity/1.
+
+config:file_integrity(off).
 
 
 %! config:file_integrity_mode(?Mode, ?Policy)
 %
 % Per-mode integrity policy override. The .qlf caches are loaded code,
 % so the long-lived, network-facing server and daemon modes require a
-% matching .sha256 sidecar instead of warn-and-load; standalone keeps
-% the global prefer default above. Regenerate a missing sidecar with
+% matching .sha256 sidecar whatever the global policy; standalone
+% follows the global default above. Regenerate a missing sidecar with
 % --sync (kb.qlf, profile.qlf) or by letting preference:init rebuild
 % its cache once (preference.qlf).
 

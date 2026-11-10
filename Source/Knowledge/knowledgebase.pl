@@ -225,9 +225,10 @@ load ::-
   ( catch(sanitize:load_qlf(Qlf),
           error(qlf_format_error(_, _), _),
           fail)
-  -> % Warm the JIT indexes off the critical path: index building is
-     % mutex-protected per predicate, so an early query at worst blocks
-     % on the build already in progress.
+  -> % Warm the JIT indexes in a background thread. A query that arrives
+     % while the build is running does not wait for it: it picks and
+     % builds an index of its own. The start-up sequence therefore joins
+     % the warmer before the first query (join_metadata_warmer/0).
      knowledgebase:start_metadata_warmer,
      % Builds record VDB changes in Knowledge/pkgdelta.pl instead of
      % rewriting kb.qlf. Apply that file on top of the loaded facts,
@@ -445,10 +446,22 @@ port(Port) ::-
 % call that needs it, so one bound probe per access pattern suffices:
 %
 %   1. cache:ordered_entry/5 with all args unbound (binds a witness entry)
-%   2. cache:entry_metadata/4 with Repo+Id+key bound — forces the
-%      (Id, Key) hash index over all metadata facts
+%   2. cache:entry_metadata/4 with Repo+Id+key bound and the value
+%      UNBOUND — forces the (Id, Key) hash index over all metadata facts
 %   3. cache:ordered_entry/5 with category/name bound — forces the
 %      (C, N) index used by per-package iteration
+%
+% Probe 2 must leave the value unbound.  With a bound value (`slot(_)`)
+% SWI-Prolog prefers an (Id, Value) index, which no resolver query uses;
+% the first real query then built the (Id, Key) index a second time, in
+% the foreground (two 75 MB tables and several seconds on a full tree).
+%
+% Probe 2 also runs under a raised `ci_min_speedup_ratio` (see
+% with_index_ratio/2).  On a full tree the (Id, Key) index rates about
+% 13.5 clauses per unit of speedup (1.7 M clauses, speedup 127,000),
+% above the default limit of 3.  An index over that limit is built but
+% not accepted as final, and later calls re-assess all clauses instead
+% of using it.
 %
 % The probes are for their index-building side effect only; the soft-fail
 % wrappers keep this predicate from failing when the witness entry has no
@@ -456,8 +469,27 @@ port(Port) ::-
 
 kb_warm_metadata_index :-
   once(cache:ordered_entry(Repo, Id, C, N, _)),
-  ( cache:entry_metadata(Repo, Id, slot, slot(_)) -> true ; true ),
+  knowledgebase:with_index_ratio(20.0,
+    ( cache:entry_metadata(Repo, Id, slot, _) -> true ; true )),
   ( cache:ordered_entry(Repo, _, C, N, _) -> true ; true ).
+
+
+%! knowledgebase:with_index_ratio(+Ratio, :Goal) is det.
+%
+% Run Goal once with the Prolog flag `ci_min_speedup_ratio` set to Ratio,
+% restoring the previous value afterwards, also when Goal fails or
+% throws.  The flag is process-wide: other threads see Ratio while Goal
+% runs, so keep Goal to a single index-building probe.  On a SWI-Prolog
+% without the flag Goal simply runs.
+
+with_index_ratio(Ratio, Goal) :-
+  ( catch(current_prolog_flag(ci_min_speedup_ratio, Old), _, fail)
+  -> setup_call_cleanup(
+       set_prolog_flag(ci_min_speedup_ratio, Ratio),
+       ignore(Goal),
+       set_prolog_flag(ci_min_speedup_ratio, Old))
+  ;  ignore(Goal)
+  ).
 
 
 % -----------------------------------------------------------------------------
@@ -490,10 +522,12 @@ start_metadata_warmer :-
 
 %! knowledgebase:join_metadata_warmer is det.
 %
-% at_halt hook: wait for the background metadata warmer to finish (up to a
-% short bound) and join it, so the process exits without the "threads wouldn't
-% die" warning. The warmer is bounded, one-shot work, so the wait is brief in
-% practice; the timeout only guards against a pathological hang.
+% Wait for the background metadata warmer to finish (up to a short bound) and
+% join it. Called at the end of start-up and before a preference rebuild, so
+% that no query overlaps the index build, and again as at_halt hook, so the
+% process exits without the "threads wouldn't die" warning. A no-op when no
+% warmer is registered. The warmer is bounded, one-shot work, so the wait is
+% brief in practice; the timeout only guards against a pathological hang.
 
 join_metadata_warmer :-
   ( retract(knowledgebase:warmer_thread(Id))

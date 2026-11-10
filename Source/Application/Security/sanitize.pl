@@ -283,8 +283,8 @@ sanitize:verify_sha256_sidecar(Path) :-
 % Resolve the integrity policy in force. A per-mode override
 % (config:file_integrity_mode/2 — `require` for the long-lived server
 % and daemon modes, whose Knowledge/*.qlf files are loaded code) wins
-% over the global config:file_integrity/1. The fallback default is
-% prefer.
+% over the global config:file_integrity/1 (shipped as `off`). With no
+% config fact at all the fallback is prefer.
 
 sanitize:effective_file_integrity(Mode) :-
   ( sanitize:current_run_mode(RunMode),
@@ -317,7 +317,7 @@ sanitize:current_run_mode(Mode) :-
 %   * require — sidecar must verify (fail otherwise)
 %   * prefer  — verify when sidecar exists; warn and succeed when missing
 %   * off     — always succeed
-% Default is prefer, overridden to require in server/daemon modes.
+% The shipped policy is off, overridden to require in server/daemon modes.
 
 sanitize:ensure_file_integrity(Path) :-
   sanitize:effective_file_integrity(Mode),

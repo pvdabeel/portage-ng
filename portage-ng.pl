@@ -92,8 +92,10 @@ main(server) :-
 %! init_knowledgebase(+Kind) is det.
 %
 % Kind is `local` (on-disk knowledge base) or `remote` (server
-% proxy). Both end with preference:init, so the caller loads the
-% world set first. ipc calls neither.
+% proxy). Both run preference:init, so the caller loads the world set
+% first. ipc calls neither. The local variant returns only once the
+% metadata index warm-up started by kb:load has finished, so the first
+% request finds the index in place instead of building one of its own.
 
 init_knowledgebase(local) :-
   stats:newinstance(stat),
@@ -102,7 +104,8 @@ init_knowledgebase(local) :-
   ensure_loaded(Config),
   kb:load,
   feedback:load,
-  preference:init.
+  preference:init,
+  knowledgebase:join_metadata_warmer.
 
 init_knowledgebase(remote) :-
   interface:process_server(Host, Port),
