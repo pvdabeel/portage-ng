@@ -9,28 +9,14 @@
 #
 set -eu
 
-# Live ebuilds clone via HTTPS. A bad/truncated GitLab path returns 401 and
-# git would otherwise block on "Username for 'https://...'".
-export GIT_TERMINAL_PROMPT=0
-export GIT_ASKPASS=/bin/false
-export GIT_CONFIG_COUNT=2
-export GIT_CONFIG_KEY_0=credential.helper
-export GIT_CONFIG_VALUE_0=
-export GIT_CONFIG_KEY_1=credential.interactive
-export GIT_CONFIG_VALUE_1=never
-
-# This script lives under Source/Application/Wrapper/, so the project root is three levels up.
-WRAPPER_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-ROOT_DIR="$(CDPATH= cd -- "$WRAPPER_DIR/../../.." && pwd)"
-IPCLIENT_PL="$ROOT_DIR/Source/Application/Client/ipclient.pl"
-
 # -----------------------------------------------------------------------------
-# Ultra-early --mode ipc fast-path
+# Ultra-early --mode ipc fast-path (zero subshells / zero forks)
 # -----------------------------------------------------------------------------
 #
-# Jump straight into ipclient.pl before the timeout/arg-rewrite loops when the
-# invocation is a plain ipc client request. Skip when legacy/profile/choice-log
-# or a hard timeout is requested (those need the slower path below).
+# Jump straight into ipclient.pl before git env exports, subshell path
+# canonicalisation, or timeout/arg-rewrite loops when the invocation is a plain
+# ipc client request. Skip when legacy/profile/choice-log or a hard timeout is
+# requested (those need the slower path below).
 _early_ipc=1
 _early_mode=""
 _want_help=0
@@ -58,14 +44,59 @@ for a in "$@"; do
   esac
   _prev="$a"
 done
+
+# Resolve WRAPPER_DIR and ROOT_DIR via pure POSIX parameter expansion when $0
+# is a direct non-symlink path without dot segments; fall back to cd+pwd only
+# when $0 is symlinked, relative with '..', or resolved via PATH.
+WRAPPER_DIR=""
+ROOT_DIR=""
+case "$0" in
+  */*)
+    case "$0" in
+      /*) _self="$0" ;;
+      *)  _self="$PWD/${0#./}" ;;
+    esac
+    case "$_self" in
+      */../*|*/./*|*/..|*/.) ;;
+      *)
+        if [ ! -L "$_self" ]; then
+          WRAPPER_DIR="${_self%/*}"
+          [ -z "$WRAPPER_DIR" ] && WRAPPER_DIR="/"
+          case "$WRAPPER_DIR" in
+            */Source/Application/Wrapper)
+              ROOT_DIR="${WRAPPER_DIR%/Source/Application/Wrapper}"
+              [ -z "$ROOT_DIR" ] && ROOT_DIR="/"
+              ;;
+          esac
+        fi
+        ;;
+    esac
+    ;;
+esac
+if [ -z "$WRAPPER_DIR" ] || [ -z "$ROOT_DIR" ]; then
+  WRAPPER_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+  ROOT_DIR="$(CDPATH= cd -- "$WRAPPER_DIR/../../.." && pwd)"
+fi
+IPCLIENT_PL="$ROOT_DIR/Source/Application/Client/ipclient.pl"
+
 if [ "$_early_ipc" = "1" ] \
    && [ "$_early_mode" = "ipc" ] \
    && [ "${PORTAGE_NG_IPC_LEGACY:-0}" != "1" ] \
    && [ -f "$IPCLIENT_PL" ]; then
   export PORTAGE_NG_ROOT="$ROOT_DIR"
   export PORTAGE_NG_DEV="$WRAPPER_DIR/portage-ng-dev"
-  exec swipl -q -f "$IPCLIENT_PL" -g ipclient:main -t halt -- "$@"
+  exec swipl -q -F none --no-packs -f "$IPCLIENT_PL" -g ipclient:main -t halt -- "$@"
 fi
+
+# Live ebuilds clone via HTTPS. A bad/truncated GitLab path returns 401 and
+# git would otherwise block on "Username for 'https://...'".
+export GIT_TERMINAL_PROMPT=0
+export GIT_ASKPASS=/bin/false
+export GIT_CONFIG_COUNT=2
+export GIT_CONFIG_KEY_0=credential.helper
+export GIT_CONFIG_VALUE_0=
+export GIT_CONFIG_KEY_1=credential.interactive
+export GIT_CONFIG_VALUE_1=never
 
 
 # -----------------------------------------------------------------------------
@@ -305,9 +336,9 @@ if [ "$MODE" = "ipc" ] \
   # Quiet, no -O, no huge stacks: startup dominates for this tiny client.
   if is_pos_int "$HARD_LIMIT"; then
     run_with_timeout "$HARD_LIMIT" \
-      swipl -q -f "$IPCLIENT_PL" -g ipclient:main -t halt -- "$@"
+      swipl -q -F none --no-packs -f "$IPCLIENT_PL" -g ipclient:main -t halt -- "$@"
   fi
-  exec swipl -q -f "$IPCLIENT_PL" -g ipclient:main -t halt -- "$@"
+  exec swipl -q -F none --no-packs -f "$IPCLIENT_PL" -g ipclient:main -t halt -- "$@"
 fi
 
 if is_pos_int "$HARD_LIMIT"; then

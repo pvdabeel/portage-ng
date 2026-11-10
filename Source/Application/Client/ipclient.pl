@@ -12,11 +12,11 @@
 Talk to a running portage-ng daemon over its Unix-domain socket.
 
 This is the client side of the daemon protocol. The wrapper loads this
-file on its own for `--mode ipc` (swipl -f ipclient.pl -g ipclient:main),
-so that sending a request costs no more than loading library(socket):
-neither portage-ng.pl nor the knowledge base is loaded in this process.
-library(process) is loaded only when the daemon has to be started or
-relaunched, which happens in a child process running
+file on its own for `--mode ipc` (swipl -q -F none --no-packs -f ipclient.pl
+-g ipclient:main), so that sending a request costs no more than loading
+library(socket) and library(uid): neither portage-ng.pl nor the knowledge base
+is loaded in this process. library(process) is loaded only when the daemon has
+to be started or relaunched, which happens in a child process running
 `portage-ng-dev --mode daemon --background`. Source/Application/Mode/ipc.pl
 reuses the connect, status and halt predicates from here when the full
 application is loaded.
@@ -53,8 +53,9 @@ clash with user:main/0 there. Callers name it as ipclient:main.
 
 %! ipclient:main is det.
 %
-% Dispatches --status / --cmd / --shell, optionally autostarts the daemon,
-% then connects and streams one request. Always halts.
+% Dispatches --status / --cmd / --shell, otherwise connects directly on the
+% fast path (autostarting the daemon only when the initial connect fails) and
+% streams one request. Always halts.
 
 ipclient:main :-
   current_prolog_flag(argv, Args),
@@ -68,8 +69,7 @@ ipclient:main :-
   ;  cmd_arg(Args, Cmd)
   -> send_command(Cmd),
      halt(0)
-  ;  maybe_autostart,
-     connect(ExitCode),
+  ;  connect_with_autostart(ExitCode),
      halt(ExitCode)
   ).
 
@@ -80,8 +80,8 @@ ipclient:main :-
 
 ipclient:cmd_arg(['--cmd', Cmd|_], Cmd) :- !.
 ipclient:cmd_arg([Arg|Rest], Cmd) :-
-  ( atom_concat('--cmd=', Cmd, Arg)
-  -> true
+  ( sub_atom(Arg, 0, 6, _, '--cmd=')
+  -> sub_atom(Arg, 6, _, 0, Cmd)
   ;  cmd_arg(Rest, Cmd)
   ).
 
@@ -125,7 +125,7 @@ ipclient:socket_connectable(Path) :-
 %! ipclient:autostart_enabled is semidet.
 %
 % Same default as config:daemon_autostart(true). Override with
-% PORTAGE_NG_IPC_AUTOSTART=0|false (checked only when the socket is missing).
+% PORTAGE_NG_IPC_AUTOSTART=0|false (checked only when connect fails).
 
 ipclient:autostart_enabled :-
   ( getenv('PORTAGE_NG_IPC_AUTOSTART', V)
@@ -134,7 +134,7 @@ ipclient:autostart_enabled :-
   ).
 
 
-%! ipclient:daemon_wrapper(-Wrapper) is det.
+%! ipclient:daemon_wrapper(-Wrapper) is semidet.
 %
 % Absolute path to portage-ng-dev, the wrapper used to start or relaunch
 % the daemon in a child process.
@@ -155,34 +155,58 @@ ipclient:daemon_wrapper(Wrapper) :-
 %  Connect + request
 % -----------------------------------------------------------------------------
 
+%! ipclient:connect_with_autostart(-ExitCode) is det.
+%
+% Attempts a single Unix-socket connect immediately; falls back to background
+% daemon autostart only when no live listener accepts the connection.
+
+ipclient:connect_with_autostart(ExitCode) :-
+  socket_path(SocketPath),
+  ( try_connect_socket(SocketPath, In, Out)
+  -> exchange(In, Out, ExitCode)
+  ;  autostart_enabled
+  -> start_daemon_background,
+     connect_at(SocketPath, ExitCode)
+  ;  no_daemon_error(SocketPath),
+     ExitCode = 1
+  ).
+
+
 %! ipclient:connect(-ExitCode) is det.
 
 ipclient:connect(ExitCode) :-
   socket_path(SocketPath),
-  ( \+ access_file(SocketPath, exist)
-  -> no_daemon_error,
-     ExitCode = 1
-  ;  connect_socket(SocketPath, In, Out)
+  connect_at(SocketPath, ExitCode).
+
+
+%! ipclient:connect_at(+SocketPath, -ExitCode) is det.
+
+ipclient:connect_at(SocketPath, ExitCode) :-
+  ( try_connect_socket(SocketPath, In, Out)
   -> exchange(In, Out, ExitCode)
-  ;  ExitCode = 1
+  ;  no_daemon_error(SocketPath),
+     ExitCode = 1
   ).
 
 
-%! ipclient:connect_socket(+SocketPath, -In, -Out) is semidet.
+%! ipclient:try_connect_socket(+SocketPath, -In, -Out) is semidet.
+%
+% Opens a Unix-domain connection to SocketPath with a 64 KB input buffer.
+% Closes the raw socket descriptor cleanly if tcp_connect/2 fails.
 
-ipclient:connect_socket(SocketPath, In, Out) :-
+ipclient:try_connect_socket(SocketPath, In, Out) :-
+  unix_domain_socket(Socket),
   catch(
-    ( unix_domain_socket(Socket),
-      tcp_connect(Socket, SocketPath),
-      tcp_open_socket(Socket, StreamPair),
-      stream_pair(StreamPair, In, Out),
-      set_stream(Out, encoding(utf8)),
-      set_stream(In, encoding(utf8))
+    ( tcp_connect(Socket, SocketPath),
+      tcp_open_socket(Socket, StreamPair)
     ),
-    _ConnectError,
-    ( no_daemon_error,
+    _,
+    ( catch(tcp_close_socket(Socket), _, true),
       fail )
-  ).
+  ),
+  stream_pair(StreamPair, In, Out),
+  set_stream(Out, encoding(utf8)),
+  set_stream(In, buffer_size(65536)).
 
 
 %! ipclient:exchange(+In, +Out, -ExitCode) is det.
@@ -203,14 +227,19 @@ ipclient:exchange(In, Out, ExitCode) :-
 
 
 %! ipclient:send_request(+Out) is det.
+%
+% Encodes `request(Args, Cols, Rows, Env).` onto Out. Checks tty(true) before
+% tty_size/2 so non-interactive runs never construct and catch an exception.
 
 ipclient:send_request(Out) :-
   current_prolog_flag(argv, RawArgs),
-  local_tty_size(Rows, Cols),
   collect_env(Env0),
   ( stream_property(user_output, tty(true))
-  -> Env = ['_CLIENT_IS_TTY'-true | Env0]
-  ;  Env = Env0
+  -> local_tty_size(Rows, Cols),
+     Env = ['_CLIENT_IS_TTY'-true | Env0]
+  ;  Rows = 80,
+     Cols = 160,
+     Env = Env0
   ),
   format(Out, 'request(~q, ~w, ~w, ~q).~n', [RawArgs, Cols, Rows, Env]).
 
@@ -230,30 +259,47 @@ ipclient:local_tty_size(Rows, Cols) :-
 %! ipclient:collect_env(-Env) is det.
 
 ipclient:collect_env(Env) :-
-  findall(Name-Value,
-    ( forwarded_env_var(Name),
-      getenv(Name, Value)
-    ),
-    Env).
+  forwarded_env_vars(Names),
+  collect_env_pairs(Names, Env).
+
+
+%! ipclient:collect_env_pairs(+Names, -Env) is det.
+
+ipclient:collect_env_pairs([], []).
+ipclient:collect_env_pairs([Name|Rest], Env) :-
+  ( getenv(Name, Value)
+  -> Env = [Name-Value|More]
+  ;  Env = More
+  ),
+  collect_env_pairs(Rest, More).
+
+
+%! ipclient:forwarded_env_vars(-Names) is det.
+
+ipclient:forwarded_env_vars(
+  [ 'USE',
+    'ACCEPT_KEYWORDS',
+    'ACCEPT_LICENSE',
+    'PYTHON_TARGETS',
+    'PYTHON_SINGLE_TARGET',
+    'RUBY_TARGETS',
+    'RUBY_SINGLE_TARGET',
+    'LUA_SINGLE_TARGET',
+    'PERL_FEATURES',
+    'LLVM_SLOT',
+    'VIDEO_CARDS',
+    'INPUT_DEVICES',
+    'CPU_FLAGS_X86',
+    'APACHE2_MODULES',
+    'APACHE2_MPMS'
+  ]).
 
 
 %! ipclient:forwarded_env_var(?Name) is nondet.
 
-ipclient:forwarded_env_var('USE').
-ipclient:forwarded_env_var('ACCEPT_KEYWORDS').
-ipclient:forwarded_env_var('ACCEPT_LICENSE').
-ipclient:forwarded_env_var('PYTHON_TARGETS').
-ipclient:forwarded_env_var('PYTHON_SINGLE_TARGET').
-ipclient:forwarded_env_var('RUBY_TARGETS').
-ipclient:forwarded_env_var('RUBY_SINGLE_TARGET').
-ipclient:forwarded_env_var('LUA_SINGLE_TARGET').
-ipclient:forwarded_env_var('PERL_FEATURES').
-ipclient:forwarded_env_var('LLVM_SLOT').
-ipclient:forwarded_env_var('VIDEO_CARDS').
-ipclient:forwarded_env_var('INPUT_DEVICES').
-ipclient:forwarded_env_var('CPU_FLAGS_X86').
-ipclient:forwarded_env_var('APACHE2_MODULES').
-ipclient:forwarded_env_var('APACHE2_MPMS').
+ipclient:forwarded_env_var(Name) :-
+  forwarded_env_vars(Names),
+  member(Name, Names).
 
 
 % -----------------------------------------------------------------------------
@@ -261,94 +307,104 @@ ipclient:forwarded_env_var('APACHE2_MPMS').
 % -----------------------------------------------------------------------------
 
 %! ipclient:stream_response(+In, -ExitCode) is det.
+%
+% Streams daemon output to current_output until a NUL-prefixed `EXIT:<code>\n`
+% sentinel. Switches OS streams to octet encoding so bytes pass through C
+% buffers without UTF-8 decode/re-encode; falls back to UTF-8 on in-memory
+% capture streams (such as with_output_to/2 in unit tests).
 
 ipclient:stream_response(In, ExitCode) :-
-  stream_chunks(In, [], ExitCode).
-
-
-%! ipclient:sentinel_marker(-Codes) is det.
-
-ipclient:sentinel_marker([0'E, 0'X, 0'I, 0'T, 0':]).
-
-
-%! ipclient:stream_chunks(+In, +Carry, -ExitCode) is det.
-
-ipclient:stream_chunks(In, Carry, ExitCode) :-
-  fill_buffer(In),
-  read_pending_codes(In, Chunk, []),
-  ( Chunk == [],
-    at_end_of_stream(In)
-  -> emit_codes(Carry),
-     connection_lost_error,
-     ExitCode = 1
-  ;  Chunk == []
-  -> stream_chunks(In, Carry, ExitCode)
-  ;  append(Carry, Chunk, Codes),
-     scan_output(In, Codes, ExitCode)
+  current_output(Out),
+  ( stream_property(Out, encoding(OrigEnc)),
+    catch(set_stream(Out, encoding(octet)), _, fail)
+  -> set_stream(In, encoding(octet)),
+     stream_segments(In, Out, ExitCode),
+     flush_output(Out),
+     catch(set_stream(Out, encoding(OrigEnc)), _, true)
+  ;  set_stream(In, encoding(utf8)),
+     stream_segments(In, Out, ExitCode),
+     flush_output(Out)
   ).
 
 
-%! ipclient:scan_output(+In, +Codes, -ExitCode) is det.
+%! ipclient:stream_segments(+In, +Out, -ExitCode) is det.
+%
+% C-level delimiter scan up to LF, CR, or NUL without cons-cell list allocation.
+% Guards leading NUL / EOF with peek_code/2 first so a NUL sentinel immediately
+% following a newline (or at byte 0) never enters read_string/5 as a leading NUL.
 
-ipclient:scan_output(In, Codes, ExitCode) :-
-  ( append(Before, [0|Tail], Codes)
-  -> emit_codes(Before),
-     match_sentinel(In, Tail, ExitCode)
-  ;  emit_codes(Codes),
-     stream_chunks(In, [], ExitCode)
+ipclient:stream_segments(In, Out, ExitCode) :-
+  peek_code(In, First),
+  stream_peeked(First, In, Out, ExitCode).
+
+
+%! ipclient:stream_peeked(+First, +In, +Out, -ExitCode) is det.
+
+ipclient:stream_peeked(-1, _In, Out, 1) :-
+  !,
+  flush_output(Out),
+  connection_lost_error.
+ipclient:stream_peeked(0, In, Out, ExitCode) :-
+  !,
+  get_code(In, _),
+  stream_after_nul(In, Out, ExitCode).
+ipclient:stream_peeked(_, In, Out, ExitCode) :-
+  read_string(In, "\n\r\x00\", "", Sep, Part),
+  ( Part == "" -> true ; write(Out, Part) ),
+  stream_after_sep(Sep, In, Out, ExitCode).
+
+
+%! ipclient:stream_after_sep(+Sep, +In, +Out, -ExitCode) is det.
+
+ipclient:stream_after_sep(10, In, Out, ExitCode) :-
+  !,
+  put_code(Out, 10),
+  stream_segments(In, Out, ExitCode).
+ipclient:stream_after_sep(13, In, Out, ExitCode) :-
+  !,
+  put_code(Out, 13),
+  flush_output(Out),
+  stream_segments(In, Out, ExitCode).
+ipclient:stream_after_sep(0, In, Out, ExitCode) :-
+  !,
+  stream_after_nul(In, Out, ExitCode).
+ipclient:stream_after_sep(-1, _In, Out, 1) :-
+  flush_output(Out),
+  connection_lost_error.
+
+
+%! ipclient:stream_after_nul(+In, +Out, -ExitCode) is det.
+
+ipclient:stream_after_nul(In, Out, ExitCode) :-
+  peek_string(In, 5, Peek),
+  ( Peek == "EXIT:"
+  -> read_string(In, 5, _),
+     collect_exit_code(In, ExitCode)
+  ;  put_code(Out, 0),
+     stream_segments(In, Out, ExitCode)
   ).
 
 
-%! ipclient:match_sentinel(+In, +Tail, -ExitCode) is det.
+%! ipclient:collect_exit_code(+In, -ExitCode) is det.
 
-ipclient:match_sentinel(In, Tail, ExitCode) :-
-  sentinel_marker(Marker),
-  ( append(Marker, AfterMarker, Tail)
-  -> collect_exit_code(In, AfterMarker, ExitCode)
-  ;  append(Tail, _, Marker)
-  -> stream_chunks(In, [0|Tail], ExitCode)
-  ;  emit_codes([0]),
-     scan_output(In, Tail, ExitCode)
-  ).
+ipclient:collect_exit_code(In, ExitCode) :-
+  read_string(In, "\n\r", "", _, CodeStr),
+  parse_exit_code(CodeStr, ExitCode).
 
 
-%! ipclient:collect_exit_code(+In, +Acc, -ExitCode) is det.
+%! ipclient:parse_exit_code(+Text, -ExitCode) is det.
 
-ipclient:collect_exit_code(In, Acc, ExitCode) :-
-  ( append(CodeCodes, [0'\n|_], Acc)
-  -> parse_exit_code(CodeCodes, ExitCode)
-  ;  fill_buffer(In),
-     read_pending_codes(In, More, []),
-     ( More == []
-     -> parse_exit_code(Acc, ExitCode)
-     ;  append(Acc, More, Acc1),
-        collect_exit_code(In, Acc1, ExitCode)
-     )
-  ).
-
-
-%! ipclient:parse_exit_code(+Codes, -ExitCode) is det.
-
-ipclient:parse_exit_code(Codes, ExitCode) :-
-  ( catch(number_codes(Number, Codes), _, fail),
+ipclient:parse_exit_code(Text, ExitCode) :-
+  ( catch(number_string(Number, Text), _, fail),
     integer(Number)
   -> ExitCode = Number
   ;  ExitCode = 1
   ).
 
 
-%! ipclient:emit_codes(+Codes) is det.
+%! ipclient:no_daemon_error(+SocketPath) is det.
 
-ipclient:emit_codes([]) :- !.
-ipclient:emit_codes(Codes) :-
-  format('~s', [Codes]),
-  flush_output.
-
-
-%! ipclient:no_daemon_error is det.
-
-ipclient:no_daemon_error :-
-  socket_path(SocketPath),
+ipclient:no_daemon_error(SocketPath) :-
   format(user_error,
     'Error: No daemon running (socket ~w not found).~n\c
      Start one with: portage-ng --mode daemon~n',
@@ -377,8 +433,8 @@ ipclient:status :-
           open(PidPath, read, S),
           read_string(S, _, PidStr),
           close(S)),
-        normalize_space(atom(Pid), PidStr),
-        format('Daemon running (PID ~w, socket ~w)~n', [Pid, SocketPath])
+        split_string(PidStr, "", " \t\r\n", [Pid|_]),
+        format('Daemon running (PID ~s, socket ~w)~n', [Pid, SocketPath])
      ;  format('Daemon socket exists (~w) but no PID file.~n', [SocketPath])
      )
   ;  format('No daemon running.~n', []),
@@ -422,13 +478,12 @@ ipclient:send_command_(Cmd) :-
 
 %! ipclient:relaunch is det.
 %
-% Stops the daemon and starts a new one.
+% Stops the daemon and starts a new one as soon as the socket disappears.
 
 ipclient:relaunch :-
   send_command_(halt),
-  sleep(1),
   socket_path(SocketPath),
-  wait_for_socket_gone(SocketPath, 50),
+  wait_for_socket_gone(SocketPath, 600),
   start_daemon_background.
 
 
@@ -437,8 +492,14 @@ ipclient:relaunch :-
 ipclient:send_term(SocketPath, Term) :-
   catch(
     ( unix_domain_socket(Socket),
-      tcp_connect(Socket, SocketPath),
-      tcp_open_socket(Socket, StreamPair),
+      catch(
+        ( tcp_connect(Socket, SocketPath),
+          tcp_open_socket(Socket, StreamPair)
+        ),
+        ConnectErr,
+        ( catch(tcp_close_socket(Socket), _, true),
+          throw(ConnectErr) )
+      ),
       stream_pair(StreamPair, In, Out),
       set_stream(Out, encoding(utf8)),
       set_stream(In, encoding(utf8)),
@@ -455,12 +516,12 @@ ipclient:send_term(SocketPath, Term) :-
 
 %! ipclient:maybe_autostart is det.
 %
-% Starts a daemon in a child process when no daemon socket exists and
-% autostart is enabled. When the socket is present nothing is loaded.
+% Starts a daemon in a child process when no daemon socket accepts a
+% connection and autostart is enabled. When the daemon is up nothing is loaded.
 
 ipclient:maybe_autostart :-
   socket_path(SocketPath),
-  \+ access_file(SocketPath, exist),
+  \+ socket_connectable(SocketPath),
   autostart_enabled,
   !,
   start_daemon_background.
@@ -504,7 +565,7 @@ ipclient:start_daemon_background :-
   process_wait(Pid, Status),
   ( Status == exit(0)
   -> socket_path(SocketPath),
-     wait_for_file(SocketPath, 600),
+     wait_for_file(SocketPath, 6000),
      ( access_file(SocketPath, exist)
      -> format('Daemon ready.~n', [])
      ;  format(user_error, 'Warning: daemon may not have started.~n', [])
@@ -520,7 +581,7 @@ ipclient:wait_for_file(_, 0) :- !.
 ipclient:wait_for_file(Path, N) :-
   ( access_file(Path, exist)
   -> true
-  ;  sleep(0.1),
+  ;  sleep(0.01),
      N1 is N - 1,
      wait_for_file(Path, N1)
   ).
@@ -532,7 +593,7 @@ ipclient:wait_for_socket_gone(_, 0) :- !.
 ipclient:wait_for_socket_gone(Path, N) :-
   ( \+ access_file(Path, exist)
   -> true
-  ;  sleep(0.1),
+  ;  sleep(0.01),
      N1 is N - 1,
      wait_for_socket_gone(Path, N1)
   ).

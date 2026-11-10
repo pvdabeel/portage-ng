@@ -273,14 +273,15 @@ interface:get_mode(Mode) :-
 interface:process_continue(Continue) :-
   !,
   interface:argv(Options,_),
-  interface:version(Version),
   lists:memberchk(mode(Mode),Options),
 
   (lists:memberchk(mode(server),Options)
-   ->  message:logo(['::- portage-ng ',Version],Mode),
+   ->  interface:version(Version),
+       message:logo(['::- portage-ng ',Version],Mode),
        Continue = true
    ;   (lists:memberchk(shell(true),Options)
-        -> Continue = (message:logo(['::- portage-ng ',Version],Mode), prolog)
+        -> interface:version(Version),
+           Continue = (message:logo(['::- portage-ng ',Version],Mode), prolog)
         ;  ( catch(daemon:running, _, fail)
            -> Continue = true
            ;  Continue = halt))).

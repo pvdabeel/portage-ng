@@ -25,19 +25,191 @@ INTERFACE module via interface.pl).
 % (non-option) arguments. Results are memoised in interface:argv_/2.
 
 :- dynamic interface:argv_/2.
+:- dynamic interface:opt_index_ready_/0.
+:- dynamic interface:opt_flag_/3.
+:- dynamic interface:opt_neg_flag_/2.
+:- dynamic interface:opt_defaults_/1.
 
 interface:argv(Options,Args) :-
   interface:argv_(Options,Args),!.
 
 interface:argv(Options,Args) :-
-  interface:spec(S),
+  current_prolog_flag(argv, RawArgs),
   catch(
-    opt_arguments(S,Options,Args0),
+    interface:parse_argv(RawArgs, Options, Args0),
     E,
     interface:argv_handle_parse_error(E)
   ),
   interface:drop_end_of_options(Args0, Args),
   assertz(interface:argv_(Options,Args)).
+
+
+%! interface:ensure_opt_index is det.
+%
+% Builds the first-argument-indexed flag lookup tables once from
+% interface:spec/1, avoiding optparse's repeated O(N^2) spec validation on
+% every request.
+
+interface:ensure_opt_index :-
+  interface:opt_index_ready_,
+  !.
+interface:ensure_opt_index :-
+  interface:spec(Spec),
+  interface:register_spec_entries(Spec, Defaults),
+  assertz(interface:opt_defaults_(Defaults)),
+  assertz(interface:opt_index_ready_).
+
+
+%! interface:register_spec_entries(+Spec, -Defaults) is det.
+
+interface:register_spec_entries([], []).
+interface:register_spec_entries([Entry|Rest], [Id-Def|More]) :-
+  memberchk(opt(Id), Entry),
+  ( memberchk(type(Type), Entry) -> true ; Type = term ),
+  ( memberchk(default(Def), Entry) -> true ; Def = '_' ),
+  ( memberchk(shortflags(Shorts), Entry) -> true ; Shorts = [] ),
+  ( memberchk(longflags(Longs), Entry) -> true ; Longs = [] ),
+  forall(member(S, Shorts),
+         ( atom_concat('-', S, SF),
+           assertz(interface:opt_flag_(SF, Id, Type)) )),
+  forall(member(L, Longs),
+         ( atom_concat('--', L, LF),
+           assertz(interface:opt_flag_(LF, Id, Type)),
+           ( Type == boolean
+           -> atom_concat('--no-', L, NF),
+              assertz(interface:opt_neg_flag_(NF, Id))
+           ;  true
+           ) )),
+  interface:register_spec_entries(Rest, More).
+
+
+%! interface:parse_argv(+RawArgs, -Options, -PosArgs) is det.
+%
+% Parses RawArgs against the indexed interface:spec/1 table with keeplast
+% duplicate handling and non-overridden defaults prepended.
+
+interface:parse_argv(RawArgs, Options, PosArgs) :-
+  interface:ensure_opt_index,
+  interface:scan_argv(RawArgs, Overrides0, PosArgs),
+  interface:dedup_keeplast(Overrides0, Overrides),
+  interface:opt_defaults_(Defaults),
+  interface:merge_defaults(Defaults, Overrides, Options).
+
+
+%! interface:scan_argv(+Tokens, -Overrides, -PosArgs) is det.
+
+interface:scan_argv([], [], []) :- !.
+interface:scan_argv([Tok|Rest], [Id-false|More], Pos) :-
+  interface:opt_neg_flag_(Tok, Id),
+  !,
+  interface:scan_argv(Rest, More, Pos).
+interface:scan_argv([Tok|Rest], [Id-Val|More], Pos) :-
+  interface:opt_flag_(Tok, Id, Type),
+  !,
+  interface:consume_flag_value(Type, Tok, Rest, Val, Rest1),
+  interface:scan_argv(Rest1, More, Pos).
+interface:scan_argv([Tok|Rest], [Id-Val|More], Pos) :-
+  sub_atom(Tok, 0, 2, _, '--'),
+  sub_atom(Tok, EqPos, 1, _, '='),
+  EqPos > 2,
+  !,
+  sub_atom(Tok, 0, EqPos, _, FlagAtom),
+  AfterEq is EqPos + 1,
+  sub_atom(Tok, AfterEq, _, 0, ValAtom),
+  ( interface:opt_flag_(FlagAtom, Id, Type)
+  -> interface:parse_opt_value(Type, ValAtom, Val),
+     interface:scan_argv(Rest, More, Pos)
+  ;  throw(error(existence_error(commandline_option, FlagAtom), _))
+  ).
+interface:scan_argv([Tok|Rest], [Id-Val|More], Pos) :-
+  sub_atom(Tok, 0, 1, _, '-'),
+  \+ sub_atom(Tok, 0, 2, _, '--'),
+  atom_length(Tok, Len),
+  Len > 2,
+  sub_atom(Tok, 0, 2, _, ShortFlag),
+  interface:opt_flag_(ShortFlag, Id, Type),
+  !,
+  sub_atom(Tok, 2, _, 0, ValAtom),
+  ( sub_atom(ValAtom, 0, 1, _, '=')
+  -> throw(error(syntax_error('disallowed: <shortflag>=<value>'), _))
+  ;  interface:parse_opt_value(Type, ValAtom, Val),
+     interface:scan_argv(Rest, More, Pos)
+  ).
+interface:scan_argv([Tok|_], _, _) :-
+  Tok \== '-',
+  Tok \== '--',
+  sub_atom(Tok, 0, 1, _, '-'),
+  !,
+  throw(error(existence_error(commandline_option, Tok), _)).
+interface:scan_argv([Tok|Rest], Overrides, [Tok|Pos]) :-
+  interface:scan_argv(Rest, Overrides, Pos).
+
+
+%! interface:consume_flag_value(+Type, +Flag, +Rest, -Val, -RestOut) is det.
+
+interface:consume_flag_value(boolean, _Flag, [Next|Rest], Bool, Rest) :-
+  ( Next == true -> Bool = true ; Next == false -> Bool = false ),
+  !.
+interface:consume_flag_value(boolean, _Flag, Rest, true, Rest) :- !.
+interface:consume_flag_value(Type, _Flag, [ValAtom|Rest], Val, Rest) :-
+  !,
+  interface:parse_opt_value(Type, ValAtom, Val).
+interface:consume_flag_value(Type, Flag, [], _, _) :-
+  throw(error(type_error(flag_value, Flag:Type), _)).
+
+
+%! interface:parse_opt_value(+Type, +Atom, -Val) is det.
+
+interface:parse_opt_value(atom, Atom, Atom) :- !.
+interface:parse_opt_value(boolean, Atom, Atom) :-
+  ( Atom == true ; Atom == false ),
+  !.
+interface:parse_opt_value(integer, Atom, Val) :-
+  !,
+  ( catch(atom_number(Atom, N), _, fail), integer(N)
+  -> Val = N
+  ;  throw(error(type_error(flag_value, integer), _))
+  ).
+interface:parse_opt_value(float, Atom, Val) :-
+  !,
+  ( catch(atom_number(Atom, N), _, fail), number(N)
+  -> Val is float(N)
+  ;  throw(error(type_error(flag_value, float), _))
+  ).
+interface:parse_opt_value(_Type, _Atom, _) :-
+  throw(error(type_error(flag_value, boolean), _)).
+
+
+%! interface:dedup_keeplast(+Pairs, -Unique) is det.
+
+interface:dedup_keeplast([], []).
+interface:dedup_keeplast([Id-Val|Rest], Result) :-
+  ( memberchk(Id-_, Rest)
+  -> interface:dedup_keeplast(Rest, Result)
+  ;  Result = [Id-Val|More],
+     interface:dedup_keeplast(Rest, More)
+  ).
+
+
+%! interface:merge_defaults(+Defaults, +Overrides, -Options) is det.
+
+interface:merge_defaults([], Overrides, Options) :-
+  interface:pairs_to_opts(Overrides, Options).
+interface:merge_defaults([Id-Def|Rest], Overrides, Options) :-
+  ( memberchk(Id-_, Overrides)
+  -> interface:merge_defaults(Rest, Overrides, Options)
+  ;  Opt =.. [Id, Def],
+     Options = [Opt|More],
+     interface:merge_defaults(Rest, Overrides, More)
+  ).
+
+
+%! interface:pairs_to_opts(+Pairs, -Options) is det.
+
+interface:pairs_to_opts([], []).
+interface:pairs_to_opts([Id-Val|Rest], [Opt|More]) :-
+  Opt =.. [Id, Val],
+  interface:pairs_to_opts(Rest, More).
 
 
 %! interface:drop_end_of_options(+Args0, -Args) is det.

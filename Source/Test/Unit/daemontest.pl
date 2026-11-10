@@ -28,6 +28,11 @@ daemontest:env_ready :-
                    [if(not_loaded)]), _, fail).
 
 
+daemontest:cpp_client_bin(Bin) :-
+  absolute_file_name(portage('Source/Application/Wrapper/ipcclient'), Bin,
+                     [access(execute), file_errors(fail)]).
+
+
 daemontest:with_temp_dir(Goal) :-
   tmp_file(daemontest, Tmp),
   ( exists_file(Tmp) -> delete_file(Tmp) ; true ),
@@ -165,8 +170,10 @@ test(daemon_ipc_ipclient_full_coverage) :-
             daemon:rewrite_ipc_mode_args(['--info'], ['--info']),
             open_null_stream(NullOut),
             call_cleanup(
-              ( open_string("invalid syntax (((\n", BadIn),
+              (                 open_string("invalid syntax (((\n", BadIn),
                 call_cleanup(daemon:handle_request(BadIn, NullOut), close(BadIn)),
+                open_string("", EofIn),
+                call_cleanup(daemon:handle_request(EofIn, NullOut), close(EofIn)),
                 open_string("malformed_req.\n", MalIn),
                 call_cleanup(daemon:handle_request(MalIn, NullOut), close(MalIn)),
                 open_string("request(['--version'], 80, 24, ['_CLIENT_IS_TTY'-true, 'USE'-'foo']).\n", GoodIn),
@@ -176,7 +183,10 @@ test(daemon_ipc_ipclient_full_coverage) :-
                 catch(daemon:dispatch(shutdown, NullOut, NullOut), daemon_halt(0), true),
                 wrap_predicate(interface:process_requests(_), test_cov, _, throw(boom_req)),
                 daemon:dispatch(request(['--version'], 0, 0, []), NullOut, NullOut),
+                daemon:dispatch(request(['--sync'], 0, 0, []), NullOut, NullOut),
                 unwrap_predicate(interface:process_requests/1, test_cov),
+                daemon:accept_loop_error(ignored_socket_err),
+                catch(daemon:accept_loop_error(daemon_halt(0)), daemon_halt(0), true),
                 EC1 = exit_code(0),
                 daemon:handle_error(NullOut, halt(2), EC1),
                 EC2 = exit_code(0),
@@ -186,8 +196,9 @@ test(daemon_ipc_ipclient_full_coverage) :-
               close(NullOut)),
             % daemon:start + accept_loop via real Unix domain socket + client thread
             thread_create(
-              ( ipclient:wait_for_file(SockPath, 50),
+              ( ipclient:wait_for_file(SockPath, 500),
                 system:sleep(0.05),
+                ipclient:socket_connectable(SockPath),
                 ipclient:send_term(SockPath, malformed_req),
                 ipclient:send_term(SockPath, shutdown)
               ),
@@ -211,10 +222,8 @@ test(daemon_ipc_ipclient_full_coverage) :-
             ipclient:collect_env(_),
             unsetenv('USE'),
             forall(ipclient:forwarded_env_var(_), true),
-            ipclient:parse_exit_code(`0`, 0),
-            ipclient:parse_exit_code(`bad`, 1),
-            ipclient:emit_codes([]),
-            ipclient:emit_codes(`ok`),
+            ipclient:parse_exit_code("0", 0),
+            ipclient:parse_exit_code("bad", 1),
             ipclient:connection_lost_error,
             \+ ipclient:status,
             \+ ipc:status,
@@ -231,22 +240,53 @@ test(daemon_ipc_ipclient_full_coverage) :-
                 tcp_listen(SrvSock, 5)
               ),
               ( ipclient:status,
+                thread_create(
+                  ( tcp_accept(SrvSock, CSA, _),
+                    tcp_close_socket(CSA)
+                  ),
+                  TA, []),
+                ipclient:maybe_autostart,
+                thread_join(TA, _),
                 catch(delete_file(PidPath), _, true),
                 ipclient:status,
-                % Test ipclient:connect with full sentinel response
+                % Test ipclient:connect with LF, CR, embedded NUL, partial sentinel, and EXIT:0
                 thread_create(
                   ( tcp_accept(SrvSock, CS1, _),
                     tcp_open_socket(CS1, SP1),
                     stream_pair(SP1, SIn1, SOut1),
                     read_line_to_string(SIn1, _),
-                    format(SOut1, 'hello~cNOT_SENTINEL~cEXIT:0~n', [0, 0]),
+                    format(SOut1, 'line1~nspin\rhello~cNOT_SENTINEL~cEX~cEXIT:0~n', [0, 0, 0]),
                     flush_output(SOut1),
                     close(SIn1), close(SOut1)
                   ),
                   T1, []),
                 ipc:connect(0),
                 thread_join(T1, _),
-                % Test ipclient:connect when server closes without sentinel
+                % Test octet stream path against real OS file stream
+                tmp_file(ipc_oct, OctTmp),
+                setup_call_cleanup(
+                  open(OctTmp, write, OctOut, [encoding(utf8)]),
+                  ( current_output(PrevOut),
+                    setup_call_cleanup(
+                      set_output(OctOut),
+                      ( thread_create(
+                          ( tcp_accept(SrvSock, CS1b, _),
+                            tcp_open_socket(CS1b, SP1b),
+                            stream_pair(SP1b, SIn1b, SOut1b),
+                            read_line_to_string(SIn1b, _),
+                            format(SOut1b, 'octet_line~n~cEXIT:0~n', [0]),
+                            flush_output(SOut1b),
+                            close(SIn1b), close(SOut1b)
+                          ),
+                          T1b, []),
+                        set_prolog_flag(argv, ['--info']),
+                        catch(ipclient:main, ipclient_halt(0), true),
+                        thread_join(T1b, _)
+                      ),
+                      set_output(PrevOut))
+                  ),
+                  ( close(OctOut), catch(delete_file(OctTmp), _, true) )),
+                % Test ipclient:connect when server closes without sentinel (empty + mid-line)
                 thread_create(
                   ( tcp_accept(SrvSock, CS2, _),
                     tcp_open_socket(CS2, SP2),
@@ -257,6 +297,18 @@ test(daemon_ipc_ipclient_full_coverage) :-
                   T2, []),
                 ipclient:connect(1),
                 thread_join(T2, _),
+                thread_create(
+                  ( tcp_accept(SrvSock, CS2b, _),
+                    tcp_open_socket(CS2b, SP2b),
+                    stream_pair(SP2b, SIn2b, SOut2b),
+                    read_line_to_string(SIn2b, _),
+                    write(SOut2b, "partial"),
+                    flush_output(SOut2b),
+                    close(SIn2b), close(SOut2b)
+                  ),
+                  T2b, []),
+                ipclient:connect(1),
+                thread_join(T2b, _),
                 % Test ipc:send_command(halt) and ipc:send_term against live socket
                 thread_create(
                   ( tcp_accept(SrvSock, CS3, _),
@@ -282,11 +334,11 @@ test(daemon_ipc_ipclient_full_coverage) :-
               ( tcp_close_socket(SrvSock),
                 catch(delete_file(SockPath), _, true)
               )),
-            % Test ipclient:collect_exit_code when newline arrives in second chunk / EOF
+            % Test ipclient:collect_exit_code on EOF and newline-terminated strings
             open_string("0", SCodeEof),
-            call_cleanup(ipclient:collect_exit_code(SCodeEof, [], 0), close(SCodeEof)),
+            call_cleanup(ipclient:collect_exit_code(SCodeEof, 0), close(SCodeEof)),
             open_string("2\n", SCodeMore),
-            call_cleanup(ipclient:collect_exit_code(SCodeMore, [], 2), close(SCodeMore)),
+            call_cleanup(ipclient:collect_exit_code(SCodeMore, 2), close(SCodeMore)),
             % Test ipclient:connect when socket file exists (plain file) but is not connectable
             setup_call_cleanup(open(SockPath, write, PlainS), write(PlainS, 'x'), close(PlainS)),
             ipclient:connect(1),
@@ -297,7 +349,7 @@ test(daemon_ipc_ipclient_full_coverage) :-
             setup_call_cleanup(open(SockPath, write, PlainS2), write(PlainS2, 'x'), close(PlainS2)),
             ipclient:wait_for_socket_gone(SockPath, 1),
             catch(delete_file(SockPath), _, true),
-            % Test ipclient:start_daemon_background, maybe_autostart, relaunch, main
+            % Test ipclient:start_daemon_background, maybe_autostart, connect_with_autostart, relaunch, main
             redefine_system_predicate(ipclient:sleep(_)),
             redefine_system_predicate(ipc:sleep(_)),
             asserta((ipclient:sleep(_) :- true)),
@@ -306,8 +358,11 @@ test(daemon_ipc_ipclient_full_coverage) :-
                            ( memberchk(process(P), Opts) -> P = 99999 ; true )),
             wrap_predicate(process:process_wait(_, Status), test_cov, _, Status = exit(0)),
             ipclient:maybe_autostart,
-            setup_call_cleanup(open(SockPath, write, PlainS3), write(PlainS3, 'x'), close(PlainS3)),
+            ipclient:connect_with_autostart(1),
+            setenv('PORTAGE_NG_IPC_AUTOSTART', '0'),
             ipclient:maybe_autostart,
+            unsetenv('PORTAGE_NG_IPC_AUTOSTART'),
+            setup_call_cleanup(open(SockPath, write, PlainS3), write(PlainS3, 'x'), close(PlainS3)),
             ipclient:start_daemon_background,
             catch(delete_file(SockPath), _, true),
             ipclient:send_command(relaunch),
@@ -370,6 +425,124 @@ test(daemon_ipc_ipclient_full_coverage) :-
           set_prolog_flag(argv, OrigRawArgv),
           retractall(interface:argv_(_, _)),
           forall(member(O-A, SavedArgv), assertz(interface:argv_(O, A)))
+        ))
+    )).
+
+test(ipcclient_cpp_conformance,
+     [condition(daemontest:cpp_client_bin(_))]) :-
+  daemontest:cpp_client_bin(Bin),
+  daemontest:with_temp_dir(
+    [XdgDir]>>(
+      atom_concat(XdgDir, '/', XdgTrailing),
+      os:compose_path(XdgDir, 'portage-ng', PDir),
+      os:make_directory(PDir),
+      os:compose_path(PDir, 'portage-ng.sock', SockPath),
+      os:compose_path(PDir, 'portage-ng.pid', PidPath),
+      Env = [ 'XDG_RUNTIME_DIR'=XdgTrailing,
+              'PORTAGE_NG_IPC_AUTOSTART'='0',
+              'USE'='wayland -X'
+            ],
+      % --help, --shell, missing --cmd, --status when down
+      process_create(Bin, ['--help'],
+                     [env(Env), stdout(null), stderr(pipe(HelpErr)), process(HP)]),
+      read_string(HelpErr, _, HelpTxt), close(HelpErr),
+      process_wait(HP, exit(0)),
+      once(sub_string(HelpTxt, _, _, _, "Usage:")),
+      process_create(Bin, ['--shell'],
+                     [env(Env), stdout(null), stderr(null), process(ShP)]),
+      process_wait(ShP, exit(1)),
+      process_create(Bin, ['--cmd'],
+                     [env(Env), stdout(null), stderr(null), process(McP)]),
+      process_wait(McP, exit(1)),
+      process_create(Bin, ['--status'],
+                     [env(Env), stdout(null), stderr(null), process(StDown)]),
+      process_wait(StDown, exit(1)),
+      process_create(Bin, ['--mode', 'ipc', '--pretend', 'foo'],
+                     [env(Env), stdout(null), stderr(null), process(NoD)]),
+      process_wait(NoD, exit(1)),
+      % Live server tests: single connect (zero phantom accepts), embedded NUL,
+      % split sentinel, env + quote escaping, --status, and --cmd halt
+      daemon:write_pid(PidPath),
+      setup_call_cleanup(
+        ( unix_domain_socket(Srv),
+          tcp_bind(Srv, SockPath),
+          tcp_listen(Srv, 5)
+        ),
+        ( % 1. Request with single-quote arg + embedded NUL + split sentinel + exit 2
+          thread_create(
+            ( tcp_accept(Srv, C1, _),
+              tcp_open_socket(C1, SP1),
+              stream_pair(SP1, In1, Out1),
+              set_stream(In1, encoding(utf8)),
+              set_stream(Out1, encoding(octet)),
+              read_term(In1, ReqTerm, []),
+              assertion(ReqTerm = request(['--pretend', 'a''b'], _, _, ReqEnv)),
+              assertion(memberchk('USE'-'wayland -X', ReqEnv)),
+              format(Out1, 'ok~cNOT~cEX', [0, 0]),
+              flush_output(Out1),
+              sleep(0.01),
+              format(Out1, '~cEXIT:', [0]),
+              flush_output(Out1),
+              sleep(0.01),
+              format(Out1, '2~n', []),
+              flush_output(Out1),
+              close(In1), close(Out1)
+            ),
+            T1, []),
+          process_create(Bin, ['--pretend', 'a''b'],
+                         [env(Env), stdout(pipe(R1Out)), stderr(null), process(P1)]),
+          set_stream(R1Out, encoding(octet)),
+          read_string(R1Out, _, Out1Str), close(R1Out),
+          process_wait(P1, exit(2)),
+          thread_join(T1, _),
+          string_codes(Out1Str, [0'o, 0'k, 0, 0'N, 0'O, 0'T, 0, 0'E, 0'X]),
+          % 2. Truncated stream without sentinel -> exit 1
+          thread_create(
+            ( tcp_accept(Srv, C2, _),
+              tcp_open_socket(C2, SP2),
+              stream_pair(SP2, In2, Out2),
+              read_line_to_string(In2, _),
+              write(Out2, "partial"),
+              flush_output(Out2),
+              close(In2), close(Out2)
+            ),
+            T2, []),
+          process_create(Bin, ['--pretend', 'foo'],
+                         [env(Env), stdout(pipe(R2Out)), stderr(null), process(P2)]),
+          read_string(R2Out, _, Out2Str), close(R2Out),
+          process_wait(P2, exit(1)),
+          thread_join(T2, _),
+          Out2Str == "partial",
+          % 3. --status (consumes one probe accept)
+          thread_create(
+            ( tcp_accept(Srv, C3, _),
+              tcp_close_socket(C3)
+            ),
+            T3, []),
+          process_create(Bin, ['--status'],
+                         [env(Env), stdout(pipe(StOut)), stderr(null), process(P3)]),
+          read_string(StOut, _, StTxt), close(StOut),
+          process_wait(P3, exit(0)),
+          thread_join(T3, _),
+          once(sub_string(StTxt, _, _, _, "Daemon running")),
+          % 4. --cmd=halt sends shutdown.
+          thread_create(
+            ( tcp_accept(Srv, C4, _),
+              tcp_open_socket(C4, SP4),
+              stream_pair(SP4, In4, Out4),
+              read_term(In4, HaltTerm, []),
+              assertion(HaltTerm == shutdown),
+              close(In4), close(Out4)
+            ),
+            T4, []),
+          process_create(Bin, ['--cmd=halt'],
+                         [env(Env), stdout(null), stderr(null), process(P4)]),
+          process_wait(P4, exit(0)),
+          thread_join(T4, _)
+        ),
+        ( tcp_close_socket(Srv),
+          catch(delete_file(SockPath), _, true),
+          catch(delete_file(PidPath), _, true)
         ))
     )).
 

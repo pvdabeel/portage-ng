@@ -14,12 +14,10 @@ Native Unix-domain IPC client for a portage-ng daemon.
 Functional parity with `Source/Application/Client/ipclient.pl`: request
 streaming, env forward, `--status`, `--cmd halt|relaunch`, `--shell` reject,
 and autostart via `portage-ng-dev --mode daemon --background`. This binary is
-the `ng-ipc-cpp` client used by `pm-bench`. It does not load SWI-Prolog or the
-knowledge base; the daemon holds the KB.
-
-This file is a standalone entry point. The Prolog counterpart is the
-canonical protocol description; this client reimplements the same wire
-format in C++ so process boot stays off the SWI runtime.
+the `ng-ipc-cpp` client used by `pm-bench`. It loads neither SWI-Prolog, the
+knowledge base, nor the C++ standard I/O / string runtime; only `libSystem` /
+`libc` is mapped at process startup, with zero heap allocations on the hot
+request path.
 
 Wire protocol (same as `ipc.pl` / `ipclient.pl`):
 
@@ -45,16 +43,14 @@ Source/Application/Wrapper/ipcclient --mode ipc --pretend <pkg>
 
 #include <cerrno>
 #include <climits>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
-#include <fstream>
-#include <iostream>
-#include <string>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-#include <sys/wait.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 namespace {
@@ -63,15 +59,13 @@ namespace {
 //  IPCCLIENT declarations
 // =============================================================================
 
-// -----------------------------------------------------------------------------
-//  Paths (mirrors config:daemon_* without loading config.pl)
-// -----------------------------------------------------------------------------
-
 constexpr char kSentinel[] = "EXIT:";
+constexpr size_t kSentinelLen = sizeof(kSentinel) - 1;
+constexpr size_t kStreamBufSize = 65536;
 
 // Same names as ipclient:forwarded_env_var/1. Only vars present in the
 // client environment are encoded into the request term.
-const char* kForwardedEnv[] = {
+constexpr const char* kForwardedEnv[] = {
     "USE",
     "ACCEPT_KEYWORDS",
     "ACCEPT_LICENSE",
@@ -89,198 +83,117 @@ const char* kForwardedEnv[] = {
     "APACHE2_MPMS",
 };
 
-std::string g_argv0;
 
+// -----------------------------------------------------------------------------
+//  Stack-first byte buffer (zero heap allocations on the hot path)
+// -----------------------------------------------------------------------------
 
-//! ipcclient:runtime_dir(-Dir)
-//
-// XDG_RUNTIME_DIR when set, otherwise `/tmp/portage-ng-$USER`.
+class SmallBuf {
+public:
+  SmallBuf() : data_(inline_), size_(0), cap_(sizeof(inline_)) {}
 
-std::string runtime_dir() {
-  const uid_t euid = geteuid();
-  if (euid == 0)
-    return "/var/run/portage-ng";
-  if (const char* xdg = std::getenv("XDG_RUNTIME_DIR");
-      xdg && *xdg && xdg[0] == '/')
-    return std::string(xdg) + "/portage-ng";
-  return std::string("/tmp/portage-ng-") + std::to_string(euid);
-}
-
-
-//! ipcclient:socket_path(-Path)
-
-std::string socket_path() { return runtime_dir() + "/portage-ng.sock"; }
-
-
-//! ipcclient:pid_path(-Path)
-
-std::string pid_path() { return runtime_dir() + "/portage-ng.pid"; }
-
-
-//! ipcclient:file_exists(+Path) is semidet.
-
-bool file_exists(const std::string& path) {
-  return access(path.c_str(), F_OK) == 0;
-}
-
-
-bool socket_connectable(const std::string& path) {
-  int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
-  if (fd < 0)
-    return false;
-  sockaddr_un addr{};
-  addr.sun_family = AF_UNIX;
-  if (path.size() >= sizeof(addr.sun_path)) {
-    ::close(fd);
-    return false;
+  ~SmallBuf() {
+    if (data_ != inline_)
+      std::free(data_);
   }
-  std::memcpy(addr.sun_path, path.c_str(), path.size() + 1);
-  const bool ok =
-      ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0;
-  ::close(fd);
-  return ok;
-}
+
+  SmallBuf(const SmallBuf&) = delete;
+  SmallBuf& operator=(const SmallBuf&) = delete;
+
+  char* data() { return data_; }
+  const char* data() const { return data_; }
+  size_t size() const { return size_; }
+  bool empty() const { return size_ == 0; }
+
+  void clear() { size_ = 0; }
+
+  bool reserve(size_t need) {
+    if (need <= cap_)
+      return true;
+    size_t new_cap = cap_ * 2;
+    while (new_cap < need)
+      new_cap *= 2;
+    char* p = nullptr;
+    if (data_ == inline_) {
+      p = static_cast<char*>(std::malloc(new_cap));
+      if (!p)
+        return false;
+      std::memcpy(p, inline_, size_);
+    } else {
+      p = static_cast<char*>(std::realloc(data_, new_cap));
+      if (!p)
+        return false;
+    }
+    data_ = p;
+    cap_ = new_cap;
+    return true;
+  }
+
+  void push(char c) {
+    if (!reserve(size_ + 1))
+      _exit(1);
+    data_[size_++] = c;
+  }
+
+  void append(const char* s, size_t n) {
+    if (n == 0)
+      return;
+    if (!reserve(size_ + n))
+      _exit(1);
+    std::memcpy(data_ + size_, s, n);
+    size_ += n;
+  }
+
+  void append_cstr(const char* s) { append(s, std::strlen(s)); }
+
+  void append_uint(unsigned long v) {
+    char tmp[32];
+    size_t i = sizeof(tmp);
+    do {
+      tmp[--i] = static_cast<char>('0' + (v % 10));
+      v /= 10;
+    } while (v != 0);
+    append(tmp + i, sizeof(tmp) - i);
+  }
+
+  // Always-quoted Prolog atom (`~q`-compatible; always valid for `read_term`).
+  // Fast-paths strings without embedded single quotes via a single memcpy.
+  void append_quoted_atom(const char* s) {
+    push('\'');
+    const char* cur = s;
+    for (;;) {
+      const char* q = std::strchr(cur, '\'');
+      if (!q) {
+        append_cstr(cur);
+        break;
+      }
+      append(cur, static_cast<size_t>(q - cur));
+      append("''", 2);
+      cur = q + 1;
+    }
+    push('\'');
+  }
+
+private:
+  char inline_[4096];
+  char* data_;
+  size_t size_;
+  size_t cap_;
+};
 
 
 // -----------------------------------------------------------------------------
-//  Request encoding
+//  Low-level file descriptor output
 // -----------------------------------------------------------------------------
 
-//! ipcclient:quote_atom(+S, -Quoted)
-//
-// Always-quoted Prolog atom (`~q`-compatible; always valid for `read_term`).
-
-std::string quote_atom(const std::string& s) {
-  std::string out;
-  out.reserve(s.size() + 2);
-  out.push_back('\'');
-  for (unsigned char c : s) {
-    if (c == '\'')
-      out.push_back('\'');
-    out.push_back(static_cast<char>(c));
-  }
-  out.push_back('\'');
-  return out;
-}
-
-
-//! ipcclient:tty_size(-Cols, -Rows)
-//
-// Same defaults as `console:local_tty_size/2` / ipclient (80 rows, 160 cols).
-
-void tty_size(int& cols, int& rows) {
-  cols = 160;
-  rows = 80;
-  winsize ws{};
-  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0 &&
-      ws.ws_row > 0) {
-    cols = ws.ws_col;
-    rows = ws.ws_row;
-  }
-}
-
-
-//! ipcclient:build_env_term(-Env)
-//
-// Prolog list of `Name-Value` pairs. `_CLIENT_IS_TTY-true` is added when
-// stdout is a tty so the daemon can decide whether to emit ANSI.
-
-std::string build_env_term() {
-  std::string env = "[";
-  bool first = true;
-  auto add = [&](const std::string& name, const std::string& value) {
-    if (!first)
-      env.push_back(',');
-    first = false;
-    env += quote_atom(name);
-    env.push_back('-');
-    env += quote_atom(value);
-  };
-  if (isatty(STDOUT_FILENO))
-    add("_CLIENT_IS_TTY", "true");
-  for (const char* name : kForwardedEnv) {
-    if (const char* val = std::getenv(name); val)
-      add(name, val);
-  }
-  env.push_back(']');
-  return env;
-}
-
-
-//! ipcclient:build_request(+Argc, +Argv, -Request)
-//
-// Encodes `request(Args, Cols, Rows, Env).` from argv (skipping argv[0]).
-
-std::string build_request(int argc, char** argv) {
-  std::string args = "[";
-  for (int i = 1; i < argc; ++i) {
-    if (i > 1)
-      args.push_back(',');
-    args += quote_atom(argv[i]);
-  }
-  args.push_back(']');
-
-  int cols = 160, rows = 80;
-  tty_size(cols, rows);
-
-  std::string req = "request(";
-  req += args;
-  req += ", ";
-  req += std::to_string(cols);
-  req += ", ";
-  req += std::to_string(rows);
-  req += ", ";
-  req += build_env_term();
-  req += ").\n";
-  return req;
-}
-
-
-// -----------------------------------------------------------------------------
-//  Connect + request
-// -----------------------------------------------------------------------------
-
-//! ipcclient:connect_socket(+Path, -Fd)
-//
-// Connects to the Unix-domain daemon socket. Returns a file descriptor, or
-// -1 after printing an error.
-
-int connect_socket(const std::string& path) {
-  int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
-  if (fd < 0) {
-    std::cerr << "Error: socket(): " << std::strerror(errno) << '\n';
-    return -1;
-  }
-  sockaddr_un addr{};
-  addr.sun_family = AF_UNIX;
-  if (path.size() >= sizeof(addr.sun_path)) {
-    std::cerr << "Error: socket path too long: " << path << '\n';
-    ::close(fd);
-    return -1;
-  }
-  std::memcpy(addr.sun_path, path.c_str(), path.size() + 1);
-  if (::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
-    std::cerr << "Error: No daemon running (socket " << path
-              << " not found).\n"
-              << "Start one with: portage-ng --mode daemon\n";
-    ::close(fd);
-    return -1;
-  }
-  return fd;
-}
-
-
-//! ipcclient:write_all(+Fd, +Data) is semidet.
-
-bool write_all(int fd, const std::string& data) {
-  const char* p = data.data();
-  size_t left = data.size();
+bool write_all_fd(int fd, const char* data, size_t len) {
+  const char* p = data;
+  size_t left = len;
   while (left > 0) {
     ssize_t n = ::write(fd, p, left);
     if (n < 0) {
       if (errno == EINTR)
         continue;
-      std::cerr << "Error: write(): " << std::strerror(errno) << '\n';
       return false;
     }
     p += n;
@@ -290,14 +203,262 @@ bool write_all(int fd, const std::string& data) {
 }
 
 
+void write_out_cstr(const char* s) {
+  write_all_fd(STDOUT_FILENO, s, std::strlen(s));
+}
+
+
+void write_err_cstr(const char* s) {
+  write_all_fd(STDERR_FILENO, s, std::strlen(s));
+}
+
+
 // -----------------------------------------------------------------------------
-//  Stream response (NUL EXIT:<code> sentinel)
+//  Paths (mirrors runtimepath:daemon_runtime_dir/1 without loading config.pl)
 // -----------------------------------------------------------------------------
 
-//! ipcclient:read_retry(+Fd, -Buf, +Cap, -N)
+struct Paths {
+  char sock[PATH_MAX];
+  char pid[PATH_MAX];
+  size_t sock_len;
+  sockaddr_un addr;
+  bool addr_ok;
+};
+
+
+size_t build_runtime_dir(char* out, size_t cap) {
+  const uid_t euid = geteuid();
+  if (euid == 0) {
+    constexpr char kRootDir[] = "/var/run/portage-ng";
+    if (sizeof(kRootDir) > cap)
+      return 0;
+    std::memcpy(out, kRootDir, sizeof(kRootDir));
+    return sizeof(kRootDir) - 1;
+  }
+  if (const char* xdg = std::getenv("XDG_RUNTIME_DIR");
+      xdg && xdg[0] == '/') {
+    size_t xlen = std::strlen(xdg);
+    while (xlen > 1 && xdg[xlen - 1] == '/')
+      --xlen;
+    constexpr char kSub[] = "/portage-ng";
+    const size_t prefix = (xlen == 1 && xdg[0] == '/') ? 0 : xlen;
+    if (prefix + sizeof(kSub) > cap)
+      return 0;
+    if (prefix > 0)
+      std::memcpy(out, xdg, prefix);
+    std::memcpy(out + prefix, kSub, sizeof(kSub));
+    return prefix + sizeof(kSub) - 1;
+  }
+  SmallBuf tmp;
+  tmp.append_cstr("/tmp/portage-ng-");
+  tmp.append_uint(static_cast<unsigned long>(euid));
+  if (tmp.size() + 1 > cap)
+    return 0;
+  std::memcpy(out, tmp.data(), tmp.size());
+  out[tmp.size()] = '\0';
+  return tmp.size();
+}
+
+
+bool init_paths(Paths& p) {
+  char dir[PATH_MAX];
+  const size_t dlen = build_runtime_dir(dir, sizeof(dir));
+  if (dlen == 0)
+    return false;
+
+  constexpr char kSockSuffix[] = "/portage-ng.sock";
+  constexpr char kPidSuffix[] = "/portage-ng.pid";
+  if (dlen + sizeof(kSockSuffix) > sizeof(p.sock) ||
+      dlen + sizeof(kPidSuffix) > sizeof(p.pid))
+    return false;
+
+  std::memcpy(p.sock, dir, dlen);
+  std::memcpy(p.sock + dlen, kSockSuffix, sizeof(kSockSuffix));
+  p.sock_len = dlen + sizeof(kSockSuffix) - 1;
+
+  std::memcpy(p.pid, dir, dlen);
+  std::memcpy(p.pid + dlen, kPidSuffix, sizeof(kPidSuffix));
+
+  std::memset(&p.addr, 0, sizeof(p.addr));
+  p.addr.sun_family = AF_UNIX;
+  if (p.sock_len < sizeof(p.addr.sun_path)) {
+    std::memcpy(p.addr.sun_path, p.sock, p.sock_len + 1);
+    p.addr_ok = true;
+  } else {
+    p.addr_ok = false;
+  }
+  return true;
+}
+
+
+bool file_exists(const char* path) { return ::access(path, F_OK) == 0; }
+
+
+int open_unix_socket() {
+#ifdef SOCK_CLOEXEC
+  int fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+#else
+  int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+#endif
+#ifdef SO_NOSIGPIPE
+  if (fd >= 0) {
+    const int one = 1;
+    (void)::setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+  }
+#endif
+  return fd;
+}
+
+
+int try_connect(const Paths& p) {
+  if (!p.addr_ok) {
+    errno = ENAMETOOLONG;
+    return -1;
+  }
+  int fd = open_unix_socket();
+  if (fd < 0)
+    return -1;
+  if (::connect(fd, reinterpret_cast<const sockaddr*>(&p.addr),
+                sizeof(p.addr)) == 0)
+    return fd;
+  const int saved = errno;
+  ::close(fd);
+  errno = saved;
+  return -1;
+}
+
+
+bool socket_connectable(const Paths& p) {
+  if (!file_exists(p.sock))
+    return false;
+  int fd = try_connect(p);
+  if (fd < 0)
+    return false;
+  ::close(fd);
+  return true;
+}
+
+
+void print_no_daemon_error(const Paths& p) {
+  SmallBuf err;
+  if (!p.addr_ok) {
+    err.append_cstr("Error: socket path too long: ");
+    err.append(p.sock, p.sock_len);
+    err.push('\n');
+  } else {
+    err.append_cstr("Error: No daemon running (socket ");
+    err.append(p.sock, p.sock_len);
+    err.append_cstr(" not found).\nStart one with: portage-ng --mode daemon\n");
+  }
+  write_all_fd(STDERR_FILENO, err.data(), err.size());
+}
+
+
+// -----------------------------------------------------------------------------
+//  Request encoding
+// -----------------------------------------------------------------------------
+
+//! ipcclient:tty_info(-Cols, -Rows, -IsTty)
 //
-// Reads up to Cap bytes. Retries EINTR. Returns bytes read, 0 on EOF, or
-// -1 on error (errno preserved).
+// Single TIOCGWINSZ ioctl determines both terminal dimensions and TTY status
+// (80 rows, 160 cols default when stdout is not a terminal).
+
+void tty_info(int& cols, int& rows, bool& is_tty) {
+  cols = 160;
+  rows = 80;
+  is_tty = false;
+  winsize ws{};
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) {
+    is_tty = true;
+    if (ws.ws_col > 0 && ws.ws_row > 0) {
+      cols = ws.ws_col;
+      rows = ws.ws_row;
+    }
+  } else if (errno != ENOTTY && errno != EINVAL && errno != EBADF &&
+             errno != ENODEV) {
+    is_tty = ::isatty(STDOUT_FILENO) == 1;
+  }
+}
+
+
+//! ipcclient:build_request(+Argc, +Argv, -Req)
+//
+// Encodes `request(Args, Cols, Rows, Env).\n` directly into Req with zero
+// intermediate allocations.
+
+void build_request(int argc, char** argv, SmallBuf& req) {
+  int cols = 160, rows = 80;
+  bool is_tty = false;
+  tty_info(cols, rows, is_tty);
+
+  req.append_cstr("request([");
+  for (int i = 1; i < argc; ++i) {
+    if (i > 1)
+      req.push(',');
+    req.append_quoted_atom(argv[i]);
+  }
+  req.append_cstr("], ");
+  req.append_uint(static_cast<unsigned long>(cols));
+  req.append_cstr(", ");
+  req.append_uint(static_cast<unsigned long>(rows));
+  req.append_cstr(", [");
+
+  bool first_env = true;
+  auto add_env = [&](const char* name, const char* val) {
+    if (!first_env)
+      req.push(',');
+    first_env = false;
+    req.append_quoted_atom(name);
+    req.push('-');
+    req.append_quoted_atom(val);
+  };
+
+  if (is_tty)
+    add_env("_CLIENT_IS_TTY", "true");
+  for (const char* name : kForwardedEnv) {
+    if (const char* val = std::getenv(name); val)
+      add_env(name, val);
+  }
+  req.append_cstr("]).\n");
+}
+
+
+bool send_all_socket(int fd, const char* data, size_t len) {
+  const char* p = data;
+  size_t left = len;
+  while (left > 0) {
+#ifdef MSG_NOSIGNAL
+    ssize_t n = ::send(fd, p, left, MSG_NOSIGNAL);
+#else
+    ssize_t n = ::write(fd, p, left);
+#endif
+    if (n < 0) {
+      if (errno == EINTR)
+        continue;
+      return false;
+    }
+    p += n;
+    left -= static_cast<size_t>(n);
+  }
+  return true;
+}
+
+
+bool write_request(int fd, const SmallBuf& req) {
+  if (send_all_socket(fd, req.data(), req.size()))
+    return true;
+  SmallBuf err;
+  err.append_cstr("Error: write(): ");
+  err.append_cstr(std::strerror(errno));
+  err.push('\n');
+  write_all_fd(STDERR_FILENO, err.data(), err.size());
+  return false;
+}
+
+
+// -----------------------------------------------------------------------------
+//  Stream response (NUL EXIT:<code> sentinel, zero-copy fast path)
+// -----------------------------------------------------------------------------
 
 ssize_t read_retry(int fd, char* buf, size_t cap) {
   for (;;) {
@@ -309,158 +470,174 @@ ssize_t read_retry(int fd, char* buf, size_t cap) {
 }
 
 
-//! ipcclient:emit_codes(+Data, +N)
-
-void emit_codes(const char* data, size_t n) {
-  if (n == 0)
-    return;
-  fwrite(data, 1, n, stdout);
-  fflush(stdout);
-}
-
-
-//! ipcclient:emit_codes(+Codes)
-
-void emit_codes(const std::string& codes) {
-  emit_codes(codes.data(), codes.size());
-}
-
-
-//! ipcclient:connection_lost_error
-
 void connection_lost_error() {
-  std::cerr
-      << "Error: daemon closed the connection without an exit status.\n";
+  write_err_cstr(
+      "Error: daemon closed the connection without an exit status.\n");
 }
 
 
-//! ipcclient:parse_exit_code(+Digits, -ExitCode)
-
-int parse_exit_code(const std::string& digits) {
-  if (digits.empty())
+int parse_exit_code_span(const char* p, size_t len) {
+  while (len > 0 && (p[len - 1] == '\r' || p[len - 1] == ' '))
+    --len;
+  if (len == 0)
     return 1;
-  char* end = nullptr;
-  long v = std::strtol(digits.c_str(), &end, 10);
-  if (end == digits.c_str() || *end != '\0')
-    return 1;
-  return static_cast<int>(v);
+  size_t idx = 0;
+  bool neg = false;
+  if (p[0] == '-' || p[0] == '+') {
+    neg = (p[0] == '-');
+    idx = 1;
+    if (idx == len)
+      return 1;
+  }
+  long v = 0;
+  for (; idx < len; ++idx) {
+    const unsigned char c = static_cast<unsigned char>(p[idx]);
+    if (c < '0' || c > '9')
+      return 1;
+    v = v * 10 + static_cast<long>(c - '0');
+    if (v > INT_MAX)
+      return 1;
+  }
+  return neg ? static_cast<int>(-v) : static_cast<int>(v);
 }
 
 
-//! ipcclient:collect_exit_code(+Fd, +Acc, -ExitCode)
-//
-// Reads until a newline after `EXIT:` and parses the digits.
-
-int collect_exit_code(int fd, std::string acc) {
-  char buf[8192];
+int collect_exit_code_slow(int fd, SmallBuf& acc) {
+  char buf[256];
   for (;;) {
-    auto nl = acc.find('\n');
-    if (nl != std::string::npos)
-      return parse_exit_code(acc.substr(0, nl));
+    const char* nl =
+        static_cast<const char*>(std::memchr(acc.data(), '\n', acc.size()));
+    if (nl)
+      return parse_exit_code_span(acc.data(),
+                                  static_cast<size_t>(nl - acc.data()));
     ssize_t n = read_retry(fd, buf, sizeof(buf));
     if (n < 0)
       return 1;
     if (n == 0)
-      return parse_exit_code(acc);
+      return parse_exit_code_span(acc.data(), acc.size());
     acc.append(buf, static_cast<size_t>(n));
   }
 }
 
 
-//! ipcclient:is_partial_sentinel(+Tail) is semidet.
-//
-// True when Tail is a (possibly empty) proper prefix of `EXIT:`.
-
-bool is_partial_sentinel(const std::string& tail) {
-  const size_t n = sizeof(kSentinel) - 1;
-  return tail.size() < n &&
-         tail.compare(0, tail.size(), kSentinel, tail.size()) == 0;
+bool is_partial_sentinel(const char* p, size_t len) {
+  return len < kSentinelLen && std::memcmp(p, kSentinel, len) == 0;
 }
 
 
-//! ipcclient:match_sentinel(+Fd, +Tail, ?Carry, -ExitCode) is semidet.
-//
-// After a NUL: full `EXIT:` collects the code; a prefix waits for more;
-// anything else is payload. False means the NUL was payload — Carry holds
-// the leftover bytes and the caller resumes scanning.
-
-bool match_sentinel(int fd, std::string tail, std::string& carry,
-                    int& exit_code) {
-  char buf[8192];
-  const size_t slen = sizeof(kSentinel) - 1;
+// Handles the cold boundary path when a NUL lands within 5 bytes of the end of
+// a 64 KB read or is followed by non-sentinel payload bytes.
+bool match_sentinel_slow(int fd, SmallBuf& tail, int& exit_code) {
+  char tmp[4096];
   for (;;) {
-    if (tail.size() >= slen && tail.compare(0, slen, kSentinel) == 0) {
-      exit_code = collect_exit_code(fd, tail.substr(slen));
+    if (tail.size() >= kSentinelLen &&
+        std::memcmp(tail.data(), kSentinel, kSentinelLen) == 0) {
+      SmallBuf digits;
+      digits.append(tail.data() + kSentinelLen, tail.size() - kSentinelLen);
+      exit_code = collect_exit_code_slow(fd, digits);
       return true;
     }
-    if (!is_partial_sentinel(tail)) {
-      emit_codes("\0", 1);
-      carry = std::move(tail);
+    if (!is_partial_sentinel(tail.data(), tail.size())) {
+      write_all_fd(STDOUT_FILENO, "\0", 1);
       return false;
     }
-    ssize_t n = read_retry(fd, buf, sizeof(buf));
+    ssize_t n = read_retry(fd, tmp, sizeof(tmp));
     if (n < 0) {
       exit_code = 1;
       return true;
     }
     if (n == 0) {
-      emit_codes("\0", 1);
-      emit_codes(tail);
+      write_all_fd(STDOUT_FILENO, "\0", 1);
+      write_all_fd(STDOUT_FILENO, tail.data(), tail.size());
       connection_lost_error();
       exit_code = 1;
       return true;
     }
-    tail.append(buf, static_cast<size_t>(n));
+    tail.append(tmp, static_cast<size_t>(n));
   }
 }
 
-
-//! ipcclient:scan_output(+Fd, ?Carry, -ExitCode) is semidet.
-//
-// Emits bytes before each NUL and tries `match_sentinel`. True when an
-// exit code is decided. False when the buffer has no NUL left.
-
-bool scan_output(int fd, std::string& carry, int& exit_code) {
-  for (;;) {
-    auto nul = carry.find('\0');
-    if (nul == std::string::npos) {
-      emit_codes(carry);
-      carry.clear();
-      return false;
-    }
-    emit_codes(carry.data(), nul);
-    std::string tail = carry.substr(nul + 1);
-    carry.clear();
-    if (match_sentinel(fd, std::move(tail), carry, exit_code))
-      return true;
-  }
-}
-
-
-//! ipcclient:stream_response(+Fd, -ExitCode)
-//
-// Copies daemon output to stdout until a NUL-prefixed `EXIT:<code>\n`
-// sentinel. A NUL that is not followed by the sentinel is treated as
-// payload. Returns the daemon exit code, or 1 on a truncated stream.
 
 int stream_response(int fd) {
-  std::string carry;
-  char buf[8192];
+  char buf[kStreamBufSize];
+  SmallBuf carry;
+
   for (;;) {
-    ssize_t n = read_retry(fd, buf, sizeof(buf));
-    if (n < 0) {
-      std::cerr << "Error: read(): " << std::strerror(errno) << '\n';
-      return 1;
+    const char* p = nullptr;
+    size_t len = 0;
+
+    if (!carry.empty()) {
+      // Drain leftover bytes after an embedded non-sentinel NUL.
+      const size_t chunk =
+          carry.size() <= sizeof(buf) ? carry.size() : sizeof(buf);
+      std::memcpy(buf, carry.data(), chunk);
+      if (chunk < carry.size()) {
+        SmallBuf rest;
+        rest.append(carry.data() + chunk, carry.size() - chunk);
+        carry.clear();
+        carry.append(rest.data(), rest.size());
+      } else {
+        carry.clear();
+      }
+      p = buf;
+      len = chunk;
+    } else {
+      ssize_t n = read_retry(fd, buf, sizeof(buf));
+      if (n < 0) {
+        SmallBuf err;
+        err.append_cstr("Error: read(): ");
+        err.append_cstr(std::strerror(errno));
+        err.push('\n');
+        write_all_fd(STDERR_FILENO, err.data(), err.size());
+        return 1;
+      }
+      if (n == 0) {
+        connection_lost_error();
+        return 1;
+      }
+      p = buf;
+      len = static_cast<size_t>(n);
     }
-    if (n == 0) {
-      emit_codes(carry);
-      connection_lost_error();
-      return 1;
+
+    while (len > 0) {
+      const char* nul = static_cast<const char*>(std::memchr(p, '\0', len));
+      if (!nul) {
+        write_all_fd(STDOUT_FILENO, p, len);
+        break;
+      }
+
+      const size_t before = static_cast<size_t>(nul - p);
+      if (before > 0)
+        write_all_fd(STDOUT_FILENO, p, before);
+
+      const char* after = nul + 1;
+      const size_t rem = len - before - 1;
+
+      // Hot fast-path: complete `EXIT:<code>\n` already present in `buf`.
+      if (rem >= kSentinelLen + 2 &&
+          std::memcmp(after, kSentinel, kSentinelLen) == 0) {
+        const char* digits = after + kSentinelLen;
+        const size_t drem = rem - kSentinelLen;
+        if (const char* nl =
+                static_cast<const char*>(std::memchr(digits, '\n', drem))) {
+          return parse_exit_code_span(digits,
+                                      static_cast<size_t>(nl - digits));
+        }
+      }
+
+      SmallBuf tail;
+      tail.append(after, rem);
+      int exit_code = 0;
+      if (match_sentinel_slow(fd, tail, exit_code))
+        return exit_code;
+
+      // Embedded NUL was payload; prepend any carry and continue scanning.
+      if (!carry.empty())
+        tail.append(carry.data(), carry.size());
+      carry.clear();
+      carry.append(tail.data(), tail.size());
+      break;
     }
-    carry.append(buf, static_cast<size_t>(n));
-    int code = 0;
-    if (scan_output(fd, carry, code))
-      return code;
   }
 }
 
@@ -469,36 +646,23 @@ int stream_response(int fd) {
 //  Status / commands / autostart
 // -----------------------------------------------------------------------------
 
-//! ipcclient:wait_for_file(+Path, +Retries)
-//
-// Polls every 100 ms until Path exists or Retries is exhausted.
-
-void wait_for_file(const std::string& path, int retries) {
+void wait_for_file(const char* path, int retries) {
   for (int i = 0; i < retries; ++i) {
     if (file_exists(path))
       return;
-    usleep(100000);
+    ::usleep(10000);
   }
 }
 
 
-//! ipcclient:wait_for_socket_gone(+Path, +Retries)
-//
-// Polls every 100 ms until Path is gone or Retries is exhausted.
-
-void wait_for_socket_gone(const std::string& path, int retries) {
+void wait_for_socket_gone(const char* path, int retries) {
   for (int i = 0; i < retries; ++i) {
     if (!file_exists(path))
       return;
-    usleep(100000);
+    ::usleep(10000);
   }
 }
 
-
-//! ipcclient:autostart_enabled is semidet.
-//
-// Same default as `config:daemon_autostart(true)`. Override with
-// `PORTAGE_NG_IPC_AUTOSTART=0|false` (checked only when the socket is missing).
 
 bool autostart_enabled() {
   const char* v = std::getenv("PORTAGE_NG_IPC_AUTOSTART");
@@ -508,225 +672,233 @@ bool autostart_enabled() {
 }
 
 
-//! ipcclient:daemon_wrapper(-Wrapper)
-//
-// Absolute path to `portage-ng-dev`, used to start/relaunch the daemon in a
-// child process. `PORTAGE_NG_DEV` wins; otherwise a sibling of this binary
-// (including after `realpath` of argv0 when invoked via PATH).
-
-std::string daemon_wrapper() {
-  if (const char* env = std::getenv("PORTAGE_NG_DEV"); env && *env) {
-    if (access(env, X_OK) == 0)
-      return env;
-  }
-  std::string base = g_argv0.empty() ? "." : g_argv0;
-  auto slash = base.rfind('/');
-  std::string dir = (slash == std::string::npos) ? "." : base.substr(0, slash);
-  std::string cand = dir + "/portage-ng-dev";
-  if (access(cand.c_str(), X_OK) == 0)
-    return cand;
-  char resolved[PATH_MAX];
-  if (!g_argv0.empty() && realpath(g_argv0.c_str(), resolved)) {
-    std::string abs(resolved);
-    slash = abs.rfind('/');
-    dir = (slash == std::string::npos) ? "." : abs.substr(0, slash);
-    cand = dir + "/portage-ng-dev";
-    if (access(cand.c_str(), X_OK) == 0)
-      return cand;
-  }
-  return {};
+bool find_sibling_wrapper(const char* bin_path, char* out, size_t cap) {
+  if (!bin_path || !*bin_path)
+    return false;
+  const char* slash = std::strrchr(bin_path, '/');
+  const size_t dir_len =
+      slash ? static_cast<size_t>(slash - bin_path) : 1;
+  const char* dir = slash ? bin_path : ".";
+  constexpr char kWrapper[] = "/portage-ng-dev";
+  if (dir_len + sizeof(kWrapper) > cap)
+    return false;
+  std::memcpy(out, dir, dir_len);
+  std::memcpy(out + dir_len, kWrapper, sizeof(kWrapper));
+  return ::access(out, X_OK) == 0;
 }
 
 
-//! ipcclient:start_daemon_background is det.
-//
-// Starts the full daemon via `portage-ng-dev --mode daemon --background`.
-// The child loads the knowledge base; this client stays ultralight.
-// stdout/stderr must be `/dev/null` (not pipes): the `--background` child
-// prints status while we wait on `waitpid`; piping both invites deadlock
-// when the pipe buffer fills before we drain — same as `ipclient.pl`.
+bool resolve_daemon_wrapper(const char* argv0, char* out, size_t cap) {
+  if (const char* env = std::getenv("PORTAGE_NG_DEV"); env && *env) {
+    const size_t len = std::strlen(env);
+    if (len + 1 <= cap && ::access(env, X_OK) == 0) {
+      std::memcpy(out, env, len + 1);
+      return true;
+    }
+  }
+  if (find_sibling_wrapper(argv0, out, cap))
+    return true;
+  char resolved[PATH_MAX];
+  if (argv0 && *argv0 && ::realpath(argv0, resolved))
+    return find_sibling_wrapper(resolved, out, cap);
+  return false;
+}
 
-int start_daemon_background() {
-  const std::string wrapper = daemon_wrapper();
-  if (wrapper.empty()) {
-    std::cerr
-        << "Error: cannot locate portage-ng-dev to start the daemon.\n"
-        << "Set PORTAGE_NG_DEV or start one with: portage-ng --mode daemon\n";
+
+int start_daemon_background(const char* argv0, const Paths& p) {
+  char wrapper[PATH_MAX];
+  if (!resolve_daemon_wrapper(argv0, wrapper, sizeof(wrapper))) {
+    write_err_cstr(
+        "Error: cannot locate portage-ng-dev to start the daemon.\n"
+        "Set PORTAGE_NG_DEV or start one with: portage-ng --mode daemon\n");
     return 1;
   }
-  std::cout << "Starting daemon in background...\n";
-  pid_t pid = fork();
+  write_out_cstr("Starting daemon in background...\n");
+  pid_t pid = ::fork();
   if (pid < 0) {
-    std::cerr << "Error: fork(): " << std::strerror(errno) << '\n';
+    SmallBuf err;
+    err.append_cstr("Error: fork(): ");
+    err.append_cstr(std::strerror(errno));
+    err.push('\n');
+    write_all_fd(STDERR_FILENO, err.data(), err.size());
     return 1;
   }
   if (pid == 0) {
-    int devnull = open("/dev/null", O_RDWR);
+    int devnull = ::open("/dev/null", O_RDWR);
     if (devnull >= 0) {
-      dup2(devnull, STDIN_FILENO);
-      dup2(devnull, STDOUT_FILENO);
-      dup2(devnull, STDERR_FILENO);
+      ::dup2(devnull, STDIN_FILENO);
+      ::dup2(devnull, STDOUT_FILENO);
+      ::dup2(devnull, STDERR_FILENO);
       if (devnull > STDERR_FILENO)
-        close(devnull);
+        ::close(devnull);
     }
-    execl(wrapper.c_str(), wrapper.c_str(), "--mode", "daemon", "--background",
-         static_cast<char*>(nullptr));
+    ::execl(wrapper, wrapper, "--mode", "daemon", "--background",
+            static_cast<char*>(nullptr));
     _exit(127);
   }
   int status = 0;
-  while (waitpid(pid, &status, 0) < 0) {
+  while (::waitpid(pid, &status, 0) < 0) {
     if (errno != EINTR) {
-      std::cerr << "Error: waitpid(): " << std::strerror(errno) << '\n';
+      SmallBuf err;
+      err.append_cstr("Error: waitpid(): ");
+      err.append_cstr(std::strerror(errno));
+      err.push('\n');
+      write_all_fd(STDERR_FILENO, err.data(), err.size());
       return 1;
     }
   }
   if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-    std::cerr << "Error: failed to start daemon (status " << status << ").\n";
+    SmallBuf err;
+    err.append_cstr("Error: failed to start daemon (status ");
+    err.append_uint(static_cast<unsigned long>(status));
+    err.append_cstr(").\n");
+    write_all_fd(STDERR_FILENO, err.data(), err.size());
     return 1;
   }
-  const std::string sock = socket_path();
-  wait_for_file(sock, 600);
-  if (socket_connectable(sock)) {
-    std::cout << "Daemon ready.\n";
+  wait_for_file(p.sock, 6000);
+  if (socket_connectable(p)) {
+    write_out_cstr("Daemon ready.\n");
     return 0;
   }
-  std::cerr << "Warning: daemon may not have started.\n";
+  write_err_cstr("Warning: daemon may not have started.\n");
   return 0;
 }
 
 
-//! ipcclient:maybe_autostart is det.
-//
-// If no daemon socket exists and autostart is enabled, start one in a child
-// process. The hot path (socket already present) does no fork.
-
-int maybe_autostart() {
-  if (socket_connectable(socket_path()))
-    return 0;
-  if (!autostart_enabled())
-    return 0;
-  return start_daemon_background();
-}
-
-
-//! ipcclient:status is semidet.
-
-int cmd_status() {
-  const std::string sock = socket_path();
-  const std::string pidf = pid_path();
-  if (!socket_connectable(sock)) {
-    std::cout << "No daemon running.\n";
-    return 1;
-  }
-  std::ifstream in(pidf);
-  std::string pid;
-  if (in && std::getline(in, pid) && !pid.empty()) {
-    while (!pid.empty() && (pid.back() == '\n' || pid.back() == ' '))
-      pid.pop_back();
-    std::cout << "Daemon running (PID " << pid << ", socket " << sock << ")\n";
-  } else {
-    std::cout << "Daemon socket exists (" << sock << ") but no PID file.\n";
-  }
-  return 0;
-}
-
-
-//! ipcclient:cmd_halt is det.
-//
-// Sends `shutdown.` to the daemon. When no socket exists, prints an error
-// and returns 0 — same as `ipclient:send_command_(halt)`.
-
-int cmd_halt() {
-  const std::string sock = socket_path();
-  if (!socket_connectable(sock)) {
-    std::cerr << "No daemon running.\n";
-    return 0;
-  }
-  int fd = connect_socket(sock);
+size_t read_pid_file(const char* pid_path, char* buf, size_t cap) {
+  int fd = ::open(pid_path, O_RDONLY);
   if (fd < 0)
+    return 0;
+  ssize_t n = read_retry(fd, buf, cap - 1);
+  ::close(fd);
+  if (n <= 0)
+    return 0;
+  size_t len = static_cast<size_t>(n);
+  while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r' ||
+                     buf[len - 1] == ' ' || buf[len - 1] == '\t'))
+    --len;
+  buf[len] = '\0';
+  return len;
+}
+
+
+int cmd_status(const Paths& p) {
+  if (!socket_connectable(p)) {
+    write_out_cstr("No daemon running.\n");
     return 1;
-  if (!write_all(fd, "shutdown.\n")) {
+  }
+  char pid[64];
+  const size_t pid_len = read_pid_file(p.pid, pid, sizeof(pid));
+  SmallBuf out;
+  if (pid_len > 0) {
+    out.append_cstr("Daemon running (PID ");
+    out.append(pid, pid_len);
+    out.append_cstr(", socket ");
+    out.append(p.sock, p.sock_len);
+    out.append_cstr(")\n");
+  } else {
+    out.append_cstr("Daemon socket exists (");
+    out.append(p.sock, p.sock_len);
+    out.append_cstr(") but no PID file.\n");
+  }
+  write_all_fd(STDOUT_FILENO, out.data(), out.size());
+  return 0;
+}
+
+
+int cmd_halt(const Paths& p) {
+  int fd = try_connect(p);
+  if (fd < 0) {
+    write_err_cstr("No daemon running.\n");
+    return 0;
+  }
+  if (!send_all_socket(fd, "shutdown.\n", 10)) {
     ::close(fd);
     return 1;
   }
-  char buf[256];
-  while (::read(fd, buf, sizeof(buf)) > 0) {
+  char drain[256];
+  while (read_retry(fd, drain, sizeof(drain)) > 0) {
   }
   ::close(fd);
-  std::cout << "Daemon stopped.\n";
+  write_out_cstr("Daemon stopped.\n");
   return 0;
 }
 
 
-//! ipcclient:relaunch is det.
-//
-// Stops the daemon and starts a new one via the full-stack wrapper child.
-
-int cmd_relaunch() {
-  cmd_halt();
-  sleep(1);
-  wait_for_socket_gone(socket_path(), 50);
-  return start_daemon_background();
+int cmd_relaunch(const char* argv0, const Paths& p) {
+  cmd_halt(p);
+  wait_for_socket_gone(p.sock, 600);
+  return start_daemon_background(argv0, p);
 }
 
 
-//! ipcclient:send_command(+Cmd)
-//
-// Cmd is `halt` or `relaunch`.
-
-int send_command(const std::string& cmd) {
-  if (cmd == "halt")
-    return cmd_halt();
-  if (cmd == "relaunch")
-    return cmd_relaunch();
-  std::cerr << "Unknown command: " << cmd << ". Use halt or relaunch.\n";
+int send_command(const char* argv0, const Paths& p, const char* cmd) {
+  if (std::strcmp(cmd, "halt") == 0)
+    return cmd_halt(p);
+  if (std::strcmp(cmd, "relaunch") == 0)
+    return cmd_relaunch(argv0, p);
+  SmallBuf err;
+  err.append_cstr("Unknown command: ");
+  err.append_cstr(cmd);
+  err.append_cstr(". Use halt or relaunch.\n");
+  write_all_fd(STDERR_FILENO, err.data(), err.size());
   return 1;
 }
 
 
-// -----------------------------------------------------------------------------
-//  Entry
-// -----------------------------------------------------------------------------
-
-//! ipcclient:usage(+Argv0)
-
-void usage(const char* argv0) {
-  std::cerr
-      << "Usage:\n"
-      << "  " << argv0 << " --mode ipc --pretend <pkg>\n"
-      << "  " << argv0 << " --status\n"
-      << "  " << argv0 << " --cmd halt|relaunch\n"
-      << "\n"
-      << "Socket: " << socket_path() << "\n";
+void usage(const char* argv0, const Paths& p) {
+  SmallBuf err;
+  err.append_cstr("Usage:\n  ");
+  err.append_cstr(argv0);
+  err.append_cstr(" --mode ipc --pretend <pkg>\n  ");
+  err.append_cstr(argv0);
+  err.append_cstr(" --status\n  ");
+  err.append_cstr(argv0);
+  err.append_cstr(" --cmd halt|relaunch\n\nSocket: ");
+  err.append(p.sock, p.sock_len);
+  err.push('\n');
+  write_all_fd(STDERR_FILENO, err.data(), err.size());
 }
 
 
-//! ipcclient:find_cmd(+Argc, +Argv, -Cmd)
-//
-// Parses `--cmd NAME` or `--cmd=NAME` from argv. Empty when absent.
+// -----------------------------------------------------------------------------
+//  Single-pass CLI scan
+// -----------------------------------------------------------------------------
 
-std::string find_cmd(int argc, char** argv) {
+struct CliFlags {
+  bool shell = false;
+  bool help = false;
+  bool status = false;
+  bool missing_cmd = false;
+  const char* cmd = nullptr;
+};
+
+
+CliFlags scan_cli(int argc, char** argv) {
+  CliFlags f;
   for (int i = 1; i < argc; ++i) {
-    if (std::strcmp(argv[i], "--cmd") == 0) {
+    const char* a = argv[i];
+    if (a[0] != '-')
+      continue;
+    if (std::strcmp(a, "--shell") == 0) {
+      f.shell = true;
+    } else if (std::strcmp(a, "-h") == 0 || std::strcmp(a, "--help") == 0) {
+      f.help = true;
+    } else if (std::strcmp(a, "--status") == 0) {
+      f.status = true;
+    } else if (std::strcmp(a, "--cmd") == 0) {
       if (i + 1 < argc)
-        return argv[i + 1];
-      return {};
+        f.cmd = argv[++i];
+      else
+        f.missing_cmd = true;
+    } else if (std::strncmp(a, "--cmd=", 6) == 0) {
+      if (a[6] != '\0')
+        f.cmd = a + 6;
+      else
+        f.missing_cmd = true;
     }
-    if (std::strncmp(argv[i], "--cmd=", 6) == 0)
-      return argv[i] + 6;
   }
-  return {};
-}
-
-
-//! ipcclient:has_flag(+Argc, +Argv, +Flag) is semidet.
-
-bool has_flag(int argc, char** argv, const char* flag) {
-  for (int i = 1; i < argc; ++i) {
-    if (std::strcmp(argv[i], flag) == 0)
-      return true;
-  }
-  return false;
+  return f;
 }
 
 } // namespace
@@ -734,57 +906,60 @@ bool has_flag(int argc, char** argv, const char* flag) {
 
 //! ipcclient:main(+Argc, +Argv)
 //
-// Dispatches `--status` / `--cmd` / `--shell`, optionally autostarts the
-// daemon, then connects and streams one request. Always exits with the
-// daemon status (or 1 on a client-side error).
+// Dispatches `--status` / `--cmd` / `--shell`, otherwise connects in a single
+// syscall on the hot path (autostarting the daemon only when connect fails)
+// and streams one request.
 
 int main(int argc, char** argv) {
-  g_argv0 = argc > 0 ? argv[0] : "";
+  Paths paths{};
+  if (!init_paths(paths)) {
+    write_err_cstr("Error: runtime directory path exceeds PATH_MAX.\n");
+    return 1;
+  }
 
+  const char* argv0 = (argc > 0 && argv[0]) ? argv[0] : "ipcclient";
   if (argc < 2) {
-    usage(argv[0]);
+    usage(argv0, paths);
     return 1;
   }
 
-  if (has_flag(argc, argv, "--shell")) {
-    std::cerr << "Error: --shell is not supported in ipc mode. "
-                 "Use --mode standalone --shell instead.\n";
+  const CliFlags cli = scan_cli(argc, argv);
+  if (cli.shell) {
+    write_err_cstr("Error: --shell is not supported in ipc mode. "
+                   "Use --mode standalone --shell instead.\n");
     return 1;
   }
-  if (has_flag(argc, argv, "-h") || has_flag(argc, argv, "--help")) {
-    usage(argv[0]);
+  if (cli.help) {
+    usage(argv0, paths);
     return 0;
   }
-  if (has_flag(argc, argv, "--status"))
-    return cmd_status();
+  if (cli.status)
+    return cmd_status(paths);
+  if (cli.cmd)
+    return send_command(argv0, paths, cli.cmd);
+  if (cli.missing_cmd) {
+    write_err_cstr("Error: --cmd requires an argument\n");
+    return 1;
+  }
 
-  const std::string cmd = find_cmd(argc, argv);
-  if (!cmd.empty())
-    return send_command(cmd);
-  for (int i = 1; i < argc; ++i) {
-    if (std::strcmp(argv[i], "--cmd") == 0) {
-      std::cerr << "Error: --cmd requires an argument\n";
+  int fd = try_connect(paths);
+  if (fd < 0) {
+    if (!paths.addr_ok || !autostart_enabled()) {
+      print_no_daemon_error(paths);
+      return 1;
+    }
+    if (start_daemon_background(argv0, paths) != 0)
+      return 1;
+    fd = try_connect(paths);
+    if (fd < 0) {
+      print_no_daemon_error(paths);
       return 1;
     }
   }
 
-  if (maybe_autostart() != 0)
-    return 1;
-
-  const std::string sock = socket_path();
-  if (!socket_connectable(sock)) {
-    std::cerr << "Error: No daemon running (socket " << sock
-              << " not found).\n"
-              << "Start one with: portage-ng --mode daemon\n";
-    return 1;
-  }
-
-  int fd = connect_socket(sock);
-  if (fd < 0)
-    return 1;
-
-  const std::string req = build_request(argc, argv);
-  if (!write_all(fd, req)) {
+  SmallBuf req;
+  build_request(argc, argv, req);
+  if (!write_request(fd, req)) {
     ::close(fd);
     return 1;
   }

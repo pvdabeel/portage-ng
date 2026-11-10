@@ -58,9 +58,11 @@ daemon:start :-
   unix_domain_socket(Socket),
   daemon:bind_socket(Socket, SocketPath),
   secure_socket_file(SocketPath),
-  tcp_listen(Socket, 5),
+  tcp_listen(Socket, 64),
   write_pid(PidPath),
+  retractall(daemon:running),
   assertz(daemon:running),
+  daemon:seed_pref_sig,
   at_halt(cleanup(SocketPath, PidPath)),
   current_prolog_flag(pid, Pid),
   format('Daemon started (PID ~w), listening on ~w~n', [Pid, SocketPath]),
@@ -246,9 +248,10 @@ daemon:accept_loop(Socket) :-
   stream_pair(StreamPair, In, Out),
   setup_call_cleanup(
     ( set_stream(In, encoding(utf8)),
-      set_stream(Out, encoding(utf8))
+      set_stream(Out, encoding(utf8)),
+      set_stream(Out, buffer_size(65536))
     ),
-    ( handle_request(In, Out)
+    ( catch(handle_request(In, Out), Err, accept_loop_error(Err))
     -> true
     ;  true
     ),
@@ -258,11 +261,24 @@ daemon:accept_loop(Socket) :-
   accept_loop(Socket).
 
 
+%! daemon:accept_loop_error(+Error) is det.
+%
+% Re-raises halt unwinds so shutdown terminates the accept loop, while
+% swallowing per-connection socket errors (e.g. client disconnect / EPIPE).
+
+daemon:accept_loop_error(Err) :-
+  ( Err = unwind(_) ; Err = daemon_halt(_) ; Err = halt(_) ),
+  !,
+  throw(Err).
+daemon:accept_loop_error(_).
+
+
 %! daemon:handle_request(+In, +Out) is det.
 %
 % Handles a single request from a client connection.
 % Reads the request term, isolates state, runs the request with
-% output redirected to the socket stream.
+% output redirected to the socket stream. Silent on immediate EOF
+% (e.g. a liveness probe closing without sending a request).
 
 daemon:handle_request(In, Out) :-
   catch(
@@ -271,16 +287,21 @@ daemon:handle_request(In, Out) :-
       dotlists(false)
     ]),
     _,
-    ( format(Out, '~cEXIT:1~n', [0]),
-      flush_output(Out),
+    ( catch((format(Out, '~cEXIT:1~n', [0]), flush_output(Out)), _, true),
       fail )
   ),
   !,
-  ( sanitize:safe_daemon_request(Term) ->
+  ( Term == end_of_file ->
+    true
+  ; sanitize:safe_daemon_request(Term) ->
     dispatch(Term, In, Out)
-  ; format(Out, 'Error: malformed request~n', []),
-    format(Out, '~cEXIT:1~n', [0]),
-    flush_output(Out)
+  ; catch(
+      ( format(Out, 'Error: malformed request~n', []),
+        format(Out, '~cEXIT:1~n', [0]),
+        flush_output(Out)
+      ),
+      _,
+      true)
   ).
 
 daemon:handle_request(_, _).
@@ -307,6 +328,7 @@ daemon:dispatch(request(Args, Cols, Rows, Env), _In, Out) :-
     ( format(Out, 'Error: ~w~n', [Error]),
       nb_setarg(1, ExitCode, 1) )
   ),
+  maybe_invalidate_pref_sig(Args),
   arg(1, ExitCode, Code),
   format(Out, '~cEXIT:~w~n', [0, Code]),
   flush_output(Out).
@@ -371,18 +393,68 @@ daemon:rewrite_ipc_mode_args(ArgsIn, ArgsOut) :-
 
 %! daemon:apply_client_env(+Env:list) is det.
 %
-% Applies client environment overrides for this request and
-% re-initializes preferences so USE/ACCEPT_KEYWORDS take effect.
+% Applies client environment overrides for this request and re-initializes
+% preferences only when forwarded environment overrides or tracked on-disk
+% configuration files have changed since the active snapshot.
 
 daemon:apply_client_env(Env) :-
   retractall(daemon:client_env(_,_)),
   forall(member(Name-Value, Env),
     assertz(daemon:client_env(Name, Value))),
-  retractall(preference:local_env_use(_)),
-  retractall(preference:local_use(_)),
-  retractall(preference:local_accept_keywords(_)),
-  preference:init.
+  ( daemon:current_pref_sig(Env, Sig),
+    daemon:active_pref_sig(PrevSig),
+    PrevSig =@= Sig
+  -> true
+  ;  retractall(daemon:active_pref_sig(_)),
+     retractall(preference:local_env_use(_)),
+     retractall(preference:local_use(_)),
+     retractall(preference:local_accept_keywords(_)),
+     preference:init,
+     ( daemon:current_pref_sig(Env, NewSig)
+     -> assertz(daemon:active_pref_sig(NewSig))
+     ;  true
+     )
+  ).
 
+
+%! daemon:seed_pref_sig is det.
+%
+% Records the startup preference signature so the first request with no
+% environment overrides reuses the resident preference state.
+
+daemon:seed_pref_sig :-
+  retractall(daemon:active_pref_sig(_)),
+  ( daemon:current_pref_sig([], Sig)
+  -> assertz(daemon:active_pref_sig(Sig))
+  ;  true
+  ).
+
+
+%! daemon:current_pref_sig(+Env, -Sig) is semidet.
+
+daemon:current_pref_sig(Env, pref_sig(PrefEnv, Stamp)) :-
+  findall(K-V,
+          ( member(K-V, Env),
+            K \== '_CLIENT_IS_TTY',
+            K \== 'TERM'
+          ),
+          Pairs),
+  msort(Pairs, PrefEnv),
+  preference:cache_current_stamp(Stamp).
+
+
+%! daemon:maybe_invalidate_pref_sig(+Args) is det.
+%
+% Drops the cached preference signature after mutating KB or world commands.
+
+daemon:maybe_invalidate_pref_sig(Args) :-
+  ( member(Flag, ['--sync', '--clear', '--load', '--regen', '--metadata', '--deselect']),
+    memberchk(Flag, Args)
+  -> retractall(daemon:active_pref_sig(_))
+  ;  true
+  ).
+
+:- dynamic daemon:active_pref_sig/1.
 :- dynamic daemon:client_tty_size/2.
 :- dynamic daemon:client_is_tty/0.
 :- dynamic daemon:client_env/2.

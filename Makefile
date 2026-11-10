@@ -11,8 +11,15 @@ IPCCLIENT            = Source/Application/Wrapper/ipcclient
 IPCCLIENT_SRC        = Source/Application/Client/ipcclient.cpp
 CXX                 ?= c++
 CXXFLAGS            ?= -O3 -Wall -march=native -Wextra
-# C++17 stays on even when the environment overrides CXXFLAGS.
-IPCCLIENT_CXXFLAGS   = $(CXXFLAGS) -std=c++17
+UNAME_S             := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+IPCCLIENT_LDFLAGS    = -Wl,-dead_strip -Wl,-dead_strip_dylibs
+else
+IPCCLIENT_LDFLAGS    = -Wl,--as-needed -Wl,--gc-sections
+endif
+# C++17 stays on even when the environment overrides CXXFLAGS; omit RTTI,
+# exceptions and unused sections/dylibs so startup links only libc/libSystem.
+IPCCLIENT_CXXFLAGS   = $(CXXFLAGS) -std=c++17 -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections
 
 CERTDIR              = Certificates
 HOST                ?= $(shell hostname)
@@ -107,7 +114,7 @@ coverage:
 
 # Build the native Unix-socket IPC client (C++ prototype).
 ipcclient:
-	$(CXX) $(IPCCLIENT_CXXFLAGS) -o $(IPCCLIENT) $(IPCCLIENT_SRC)
+	$(CXX) $(IPCCLIENT_CXXFLAGS) $(IPCCLIENT_LDFLAGS) -o $(IPCCLIENT) $(IPCCLIENT_SRC)
 
 # Remove built binaries and the compiled module cache.
 clean:

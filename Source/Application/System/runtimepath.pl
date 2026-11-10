@@ -44,6 +44,6 @@ runtimepath:daemon_runtime_dir_for(_Euid, Xdg, Dir) :-
   Xdg \== '',
   sub_atom(Xdg, 0, 1, _, '/'),
   !,
-  os:compose_path(Xdg, 'portage-ng', Dir).
+  directory_file_path(Xdg, 'portage-ng', Dir).
 runtimepath:daemon_runtime_dir_for(Euid, _Xdg, Dir) :-
   format(atom(Dir), '/tmp/portage-ng-~d', [Euid]).
