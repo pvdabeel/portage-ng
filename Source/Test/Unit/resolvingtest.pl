@@ -1176,6 +1176,47 @@ test(slot_learn_excludes_without_any_key,
   \+ cnselect:child_reselection_possible(td, ap, [Dep813], []),
   \+ prover:learned(cn_domain(td, ap, any), _).
 
+test(root_slot_occupant_drops_lower_bound_newcomer,
+     [setup(tilde_pin_setup),
+      cleanup(tilde_pin_cleanup)]) :-
+  V22 = version([22,1,8], '', 4, 0, [], 0, '22.1.8'),
+  V23 = version([23,1,4], '', 4, 0, [], 1, '23.1.4-r1'),
+  Sel22 = selected(qtest, 'td/cc-22.1.8', run, V22, [slot('0')]),
+  Sel23 = selected(qtest, 'td/cc-23.1.4-r1', run, V23, [slot('0')]),
+  Q = qualified_target(equal, qtest, td, cc, V22, [[], []]),
+  nb_setval(prover_root_goals, [target(Q, '=td/cc-22.1.8'):run?{[]}]),
+  list_to_assoc([selected_cn_allow_multislot(td, cc)-true], Cons),
+  sort([Sel22, Sel23], Merged),
+  % clang-common-22 is already in the slot; clang-23 asks for >=23.1.4.
+  \+ cnselect:selected_cn_unique_or_reprove(td, cc, [Sel23], Merged, Cons),
+  prover:learned(cn_domain(td, cc, '0'), version_domain(any, [bound(equal, V22)])),
+  \+ prover:learned(cn_domain(td, cc, any), _),
+  Dep23 = package_dependency(run, no, td, cc, greaterequal, V23, [], []),
+  \+ cnselect:child_reselection_possible(td, cc, [Dep23], []),
+  Ctx = [self(qtest://'td/clang-23.1.4-r1')],
+  catch(( cnselect:maybe_learn_parent_narrowing(td, cc, [Dep23], Ctx),
+          fail ),
+        prover_reprove(cn_domain(td, clang, none, [qtest://'td/clang-23.1.4-r1'], [parent_narrowing])),
+        true),
+  % The root can also be the version that arrives second.
+  ( nb_current(prover_learned_constraints, _) -> nb_delete(prover_learned_constraints) ; true ),
+  \+ cnselect:selected_cn_unique_or_reprove(td, cc, [Sel22], Merged, Cons),
+  prover:learned(cn_domain(td, cc, '0'), version_domain(any, [bound(equal, V22)])).
+
+test(unversioned_root_does_not_pin_one_slot_version,
+     [setup(tilde_pin_setup),
+      cleanup(tilde_pin_cleanup)]) :-
+  V22 = version([22,1,8], '', 4, 0, [], 0, '22.1.8'),
+  V23 = version([23,1,4], '', 4, 0, [], 1, '23.1.4-r1'),
+  Sel22 = selected(qtest, 'td/cc-22.1.8', run, V22, [slot('0')]),
+  Sel23 = selected(qtest, 'td/cc-23.1.4-r1', run, V23, [slot('0')]),
+  Qu = qualified_target(none, qtest, td, cc, version_none, [[], []]),
+  nb_setval(prover_root_goals, [target(Qu, 'td/cc'):run?{[]}]),
+  list_to_assoc([selected_cn_allow_multislot(td, cc)-true], Cons),
+  sort([Sel22, Sel23], Merged),
+  \+ cnselect:selected_cn_unique_or_reprove(td, cc, [Sel23], Merged, Cons),
+  \+ prover:learned(cn_domain(td, cc, _), _).
+
 test(distinct_slots_stay_unique,
      [setup(tilde_pin_setup),
       cleanup(tilde_pin_cleanup)]) :-
@@ -1241,6 +1282,14 @@ tilde_pin_setup :-
   assertz(cache:entry_metadata(qtest, 'td/crt-19', slot, slot('19'))),
   assertz(cache:ordered_entry(qtest, 'td/root-1.0', td, root, V1)),
   assertz(cache:entry_metadata(qtest, 'td/root-1.0', slot, slot('0'))),
+  V22 = version([22,1,8], '', 4, 0, [], 0, '22.1.8'),
+  V23 = version([23,1,4], '', 4, 0, [], 1, '23.1.4-r1'),
+  assertz(cache:ordered_entry(qtest, 'td/cc-22.1.8', td, cc, V22)),
+  assertz(cache:entry_metadata(qtest, 'td/cc-22.1.8', slot, slot('0'))),
+  assertz(cache:ordered_entry(qtest, 'td/cc-23.1.4-r1', td, cc, V23)),
+  assertz(cache:entry_metadata(qtest, 'td/cc-23.1.4-r1', slot, slot('0'))),
+  assertz(cache:ordered_entry(qtest, 'td/clang-23.1.4-r1', td, clang, V23)),
+  assertz(cache:entry_metadata(qtest, 'td/clang-23.1.4-r1', slot, slot('23'))),
   forall(cache:ordered_entry(qtest, Id, td, _, _),
          assertz(cache:entry_metadata(qtest, Id, keywords, stable(amd64)))),
   % CI boots PLUnit without preference:init, so ACCEPT_KEYWORDS is empty
@@ -1262,6 +1311,9 @@ tilde_pin_cleanup :-
   retractall(cache:entry_metadata(qtest, 'td/crt-18', _, _)),
   retractall(cache:entry_metadata(qtest, 'td/crt-19', _, _)),
   retractall(cache:entry_metadata(qtest, 'td/root-1.0', _, _)),
+  retractall(cache:entry_metadata(qtest, 'td/cc-22.1.8', _, _)),
+  retractall(cache:entry_metadata(qtest, 'td/cc-23.1.4-r1', _, _)),
+  retractall(cache:entry_metadata(qtest, 'td/clang-23.1.4-r1', _, _)),
   ( nb_current(prover_learned_constraints, _) -> nb_delete(prover_learned_constraints) ; true ),
   ( nb_current(prover_root_goals, _) -> nb_delete(prover_root_goals) ; true ),
   memo:clear_caches.

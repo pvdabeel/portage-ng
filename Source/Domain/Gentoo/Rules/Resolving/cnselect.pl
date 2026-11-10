@@ -712,6 +712,30 @@ cnselect:selected_cn_unique_or_reprove(C, N, _SelectedNew, _SelectedMerged, Cons
   Added == true,
   maybe_request_cn_domain_reprove(OriginC, OriginN, none, [OriginRepo://OriginEntry], [inconsistency_driven]),
   fail.
+% The root target already occupies a slot that cannot hold a second
+% version (llvm-core/clang-common SLOT=0 vs clang-23's
+% >=clang-common-23.1.4). A lower bound never enters cn_domain
+% (dep_bound_op drops it), so the tilde learner below has no pin to
+% keep. Learn an exact bound on the one root version in this slot.
+% Parent narrowing then drops the package that asked for the other
+% version. An unversioned root matches every version, so it is not a
+% holding pin, and a different slot of this package is ignored.
+cnselect:selected_cn_unique_or_reprove(C, N, SelectedNew, SelectedMerged, Constraints) :-
+  cn_domain_reprove_enabled,
+  SelectedNew \== [],
+  \+ selected_cn_requires_same_slot_multiversion(C, N, Constraints),
+  newcomer_slot_key(SelectedNew, Slot),
+  Slot \== any,
+  heuristic:filter_selected_by_slot(Slot, SelectedMerged, SlotSelected),
+  ord_subtract(SlotSelected, SelectedNew, Committed),
+  Committed \== [],
+  root_slot_version(SlotSelected, Ver),
+  Domain = version_domain(any, [bound(equal, Ver)]),
+  selected_cn_partition_by_domain(Domain, SlotSelected, Allowed, Conflicting),
+  Allowed \== [],
+  Conflicting \== [],
+  prover:learn(cn_domain(C, N, Slot), Domain, _),
+  fail.
 % A same-slot clash with no cn_domain to partition on. Tilde pins never
 % enter the per-dep domain (dep_bound_op drops them) but, once
 % normalize_bound_op keeps tilde, cn_domain_reason names every pin that
@@ -753,6 +777,22 @@ cnselect:newcomer_slot_key([selected(_, _, _, _, SlotMeta)|_], Slot) :-
   selected_cn_slot_key_(SlotMeta, Slot),
   !.
 cnselect:newcomer_slot_key(_, any).
+
+
+%! cnselect:root_slot_version(+SlotSelected, -Ver) is semidet.
+%
+% Version of the single root target among SlotSelected. Two root
+% targets means the goal was unversioned and matches every version of
+% the package; that is not a pin. The same entry selected under two
+% actions is one target.
+
+cnselect:root_slot_version(SlotSelected, Ver) :-
+  findall(pair(Repo://Entry, Ver0),
+          ( member(selected(Repo, Entry, _, Ver0, _), SlotSelected),
+            entry_is_root_target(Repo://Entry)
+          ),
+          Pairs0),
+  sort(Pairs0, [pair(_, Ver)]).
 
 
 %! cnselect:reason_pin_domain(+Reasons, +Committed, +Constraints, -Domain) is semidet.
