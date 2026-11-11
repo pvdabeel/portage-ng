@@ -418,6 +418,11 @@ interfacetest:written_fact(retractall(Fact), Fact).
 
 :- begin_tests(interface_and_actions_full_coverage).
 
+% True when no repository has been loaded into the cache, which is the case
+% when the tests run without a knowledge base.
+no_repository_loaded :-
+  \+ cache:repository(_).
+
 % True when parsing Argv throws an error that matches Expected. Fails when
 % the command line is accepted, so a mistake that goes unnoticed is caught.
 argv_error(Argv, Expected) :-
@@ -691,7 +696,13 @@ test(argv_version_exitcodes_target_flags_verify_requests) :-
       working_directory(_, OrigCwd)
     )).
 
-test(actions_full_coverage) :-
+% Calls every action once, among them the ones behind --sync, --regen,
+% --graph and the VDB import, which work on every repository that is
+% loaded. The test therefore only runs when no repository is loaded and
+% the only one it meets is its own stub (`make coverage`, the PLUnit job
+% on GitHub). With the Portage tree loaded (`make test` on a development
+% machine) it would sync and graph the real tree, so it is skipped there.
+test(actions_full_coverage, [condition(no_repository_loaded)]) :-
   user:ensure_loaded(portage('Source/Application/Mode/client.pl')),
   redefine_system_predicate(interface:halt(_)),
   findall(O-A, interface:argv_(O, A), SavedArgv),

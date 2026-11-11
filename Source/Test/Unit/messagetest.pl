@@ -352,7 +352,13 @@ test(system_writer_config_and_loader_full_coverage, [nondet]) :-
         linkage:broken_libs('/no/such/file.so', []),
         linkage:broken_libs_linux(FakeSo, [_]),
         linkage:broken_libs_macos(FakeSo, [_]),
-        linkage:check([_]),
+        % linkage:check/1 looks at every installed package. With the
+        % VDB of this machine loaded that is a few thousand packages,
+        % so the check is held to the package of this test.
+        wrap_predicate(vdb:installed_entry(Installed), test_cov, InstalledEntry,
+                       ( InstalledEntry, Installed == 'wcat/wpkg-1.0' )),
+        call_cleanup(linkage:check([_]),
+                     unwrap_predicate(vdb:installed_entry/1, test_cov)),
         % 3. lock.pl
         lock:with_system_lock('test/lock:0', true),
         lock:with_system_lock('test/lock:1', true, [timeout(1), stale(1)]),

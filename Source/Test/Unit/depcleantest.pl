@@ -101,6 +101,30 @@ depcleantest_rm_rf(Dir) :-
   ;  true
   ).
 
+% Makes Dir the only answer of distfiles:get_location/1 and returns the
+% clauses that were there before in Saved. With a knowledge base loaded
+% that is the clause of the real distfiles repository. Fails when Dir is
+% not the only answer afterwards.
+depcleantest_swap_distfiles_location(Dir, Saved) :-
+  findall(distfiles:(get_location(Location) :- Body),
+          catch(clause(distfiles:get_location(Location), Body), _, fail),
+          Saved),
+  retractall(distfiles:get_location(_)),
+  assertz(distfiles:get_location(Dir)),
+  findall(Answer, distfiles:get_location(Answer), Answers),
+  ( Answers == [Dir]
+  -> true
+  ;  depcleantest_restore_distfiles_location(Saved),
+     fail
+  ).
+
+% Puts back the clauses that depcleantest_swap_distfiles_location/2 took
+% away. They are stored as distfiles:(Head :- Body) so that their bodies
+% run in the module they came from.
+depcleantest_restore_distfiles_location(Saved) :-
+  retractall(distfiles:get_location(_)),
+  forall(member(Clause, Saved), assertz(Clause)).
+
 :- begin_tests(depclean_and_gentoo_domain_full).
 
 test(issue_known_tree_issues) :-
@@ -129,10 +153,14 @@ test(set_class_operations, [nondet]) :-
     ),
     depcleantest_rm_rf(TmpDir)).
 
+% distfiles:clean/1 deletes files. The distfiles directory of this machine
+% is therefore taken out of distfiles:get_location/1 for the duration of
+% the test, and the test does not start unless the temporary directory is
+% the only location left.
 test(distfiles_operations) :-
   depcleantest_mktemp(dist_test, TmpDir),
   setup_call_cleanup(
-    ( assertz(distfiles:get_location(TmpDir)),
+    ( depcleantest_swap_distfiles_location(TmpDir, SavedLocation),
       os:compose_path(TmpDir, 'foo-1.0.tar.gz', F1),
       os:compose_path(TmpDir, 'orphan-1.0.tar.gz', F2),
       setup_call_cleanup(open(F1, write, S1), write(S1, '12345'), close(S1)),
@@ -157,7 +185,7 @@ test(distfiles_operations) :-
       assertz(distfiles:get_location('/tmp/nonexistent-portage-ng-distfiles-dir')),
       distfiles:list([])
     ),
-    ( retractall(distfiles:get_location(_)),
+    ( depcleantest_restore_distfiles_location(SavedLocation),
       retractall(cache:ordered_entry(qtest, 'dcat/dpkg-1.0', _, _, _)),
       retractall(cache:entry_metadata(qtest, 'dcat/dpkg-1.0', _, _)),
       retractall(cache:manifest(qtest, m1, _, _, _)),
