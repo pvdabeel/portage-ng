@@ -2468,16 +2468,39 @@ preference:cache_enabled :-
 
 
 %! preference:cache_current_stamp(-Stamp) is det.
+%
+% Stamp describes everything the materialized preference state is built
+% from, as it is now: the format of the cache, the modification time of
+% every file that is read, and the value of every environment variable
+% that is read. The cache is used only while its stored stamp equals this
+% one, so an input that is missing here is an input whose change goes
+% unnoticed.
 
 preference:cache_current_stamp(Stamp) :-
   findall(Input, preference:cache_stamp_input(Input), Inputs0),
   sort(Inputs0, Stamp).
 
 
-% Serialization format version.  Bump whenever the shape of a cached
-% entry changes (e.g. local_masked/1 -> local_masked/2), so stale
-% preference.qlf files are rebuilt instead of silently misapplied.
-preference:cache_stamp_input(format(2)).
+%! preference:cache_stamp_input(-Input) is nondet.
+%
+% Enumerates the parts of the stamp.
+%
+% format(N) is the version of the cache format. Raise it whenever the
+% shape of a cached entry changes (e.g. local_masked/1 -> local_masked/2)
+% or the stamp gains an input, so that a preference.qlf written before
+% the change is rebuilt instead of trusted.
+%
+% src(Path, Mtime) is a file that is read and its modification time.
+%
+% env(Name, Value) is an environment variable that is read. USE,
+% ACCEPT_KEYWORDS and ACCEPT_LICENSE are always listed, with an empty
+% value when they are not set. ARCH and the USE_EXPAND variables
+% (PYTHON_TARGETS, VIDEO_CARDS, ...) are listed only when they are set to
+% something. Without them a run with PYTHON_TARGETS set either had no
+% effect, because the cache built without it was still considered current,
+% or it rebuilt the cache and left its value in there for every later run.
+
+preference:cache_stamp_input(format(3)).
 
 preference:cache_stamp_input(src(Path, Mtime)) :-
   preference:cache_tracked_path(Path),
@@ -2485,14 +2508,45 @@ preference:cache_stamp_input(src(Path, Mtime)) :-
 
 preference:cache_stamp_input(env(Name, Value)) :-
   member(Name, ['USE', 'ACCEPT_KEYWORDS', 'ACCEPT_LICENSE']),
-  ( ( current_predicate(interface:getenv/2)
-    -> interface:getenv(Name, Value)
-    ;  system:getenv(Name, Value)
-    )
+  ( preference:cache_stamp_getenv(Name, Value)
   -> true
   ;  Value = ''
   ).
 
+preference:cache_stamp_input(env(Name, Value)) :-
+  preference:cache_stamp_optional_env(Name),
+  preference:cache_stamp_getenv(Name, Value),
+  Value \== ''.
+
+
+%! preference:cache_stamp_optional_env(-Name) is nondet.
+%
+% The environment variables that are part of the stamp only when they are
+% set: ARCH and one variable per USE_EXPAND prefix.
+
+preference:cache_stamp_optional_env('ARCH').
+preference:cache_stamp_optional_env(Name) :-
+  preference:use_expand_env(Name, _).
+
+
+%! preference:cache_stamp_getenv(+Name, -Value) is semidet.
+%
+% The value of environment variable Name as this process, or the client of
+% the daemon, has it. make.conf is not consulted here: it is a file, and
+% its modification time is in the stamp already.
+
+preference:cache_stamp_getenv(Name, Value) :-
+  ( current_predicate(interface:getenv/2)
+  -> interface:getenv(Name, Value)
+  ;  system:getenv(Name, Value)
+  ).
+
+
+%! preference:cache_tracked_path(-Path) is nondet.
+%
+% Enumerates the files the preference state is built from: the knowledge
+% base, the profile cache, the world file, the files in the configuration
+% directory, the set files and use.desc of the Portage tree.
 
 preference:cache_tracked_path('Knowledge/kb.qlf').
 preference:cache_tracked_path('Knowledge/profile.qlf').
@@ -2510,7 +2564,8 @@ preference:cache_tracked_path(Path) :-
                 'package.unmask',
                 'package.accept_keywords',
                 'package.license' ]),
-  os:compose_path(Dir, Base, Path).
+  os:compose_path(Dir, Base, Entry),
+  preference:cache_confdir_entry_path(Entry, Path).
 
 preference:cache_tracked_path(Path) :-
   current_predicate(config:set_dir/1),
@@ -2526,6 +2581,27 @@ preference:cache_tracked_path(Path) :-
   catch(portage:get_location(Root), _, fail),
   os:compose_path([Root, 'profiles', 'use.desc'], Path).
 
+
+%! preference:cache_confdir_entry_path(+Entry, -Path) is nondet.
+%
+% Entry is one of the names in the configuration directory. Path is Entry
+% itself and, when Entry is a directory (package.use/ holding several
+% files), every file userconfig reads from it. Each of those files gets
+% its own modification time in the stamp, so that editing, adding or
+% removing one of them is noticed.
+
+preference:cache_confdir_entry_path(Entry, Entry).
+preference:cache_confdir_entry_path(Entry, File) :-
+  exists_directory(Entry),
+  current_predicate(userconfig:collect_files/2),
+  userconfig:collect_files(Entry, Files),
+  member(File, Files).
+
+
+%! preference:cache_skip_set_name(+Name) is semidet.
+%
+% True for the entries of the set directory that are not set files: hidden
+% entries, and the world file, which is tracked under its own path.
 
 preference:cache_skip_set_name(Name) :-
   ( sub_atom(Name, 0, 1, _, '.')

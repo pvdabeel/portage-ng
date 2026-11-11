@@ -461,8 +461,10 @@ preference state** to disk:
 
 The cache is **regenerated automatically** when the stamp no longer matches — for
 example after `--sync` (which invalidates the cache when `kb.qlf` / `profile.qlf`
-change), after editing `/etc/portage`, or when `USE` / `ACCEPT_KEYWORDS` /
-`ACCEPT_LICENSE` change in the environment.
+change), after editing `/etc/portage` (a file inside a directory such as
+`package.use/` counts as well), or when `USE`, `ACCEPT_KEYWORDS`,
+`ACCEPT_LICENSE`, `ARCH` or a USE_EXPAND variable such as `PYTHON_TARGETS` or
+`VIDEO_CARDS` changes in the environment.
 
 Control per mode in `config.pl`:
 

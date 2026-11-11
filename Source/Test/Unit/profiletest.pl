@@ -580,3 +580,98 @@ test(preference_module_full_coverage, [nondet]) :-
     )).
 
 :- end_tests(preference_and_variant_full_coverage).
+
+
+% -----------------------------------------------------------------------------
+%  Preference cache stamp
+% -----------------------------------------------------------------------------
+
+:- begin_tests(preference_cache_stamp).
+
+% A USE_EXPAND variable is read when the preferences are built, so it has to
+% be part of the stamp: setting it, changing it and unsetting it each give a
+% different stamp, and unsetting it gives back the stamp from before.
+test(use_expand_variable_is_part_of_stamp,
+     [ setup(profiletest:save_env('PYTHON_TARGETS', Saved)),
+       cleanup(profiletest:restore_env('PYTHON_TARGETS', Saved)) ]) :-
+  unsetenv('PYTHON_TARGETS'),
+  preference:cache_current_stamp(Unset),
+  setenv('PYTHON_TARGETS', 'python3_12'),
+  preference:cache_current_stamp(With12),
+  setenv('PYTHON_TARGETS', 'python3_13'),
+  preference:cache_current_stamp(With13),
+  unsetenv('PYTHON_TARGETS'),
+  preference:cache_current_stamp(UnsetAgain),
+  Unset \== With12,
+  With12 \== With13,
+  Unset == UnsetAgain,
+  \+ memberchk(env('PYTHON_TARGETS', _), Unset),
+  memberchk(env('PYTHON_TARGETS', python3_12), With12).
+
+% An empty value is the same as no value, as it is for preference:init.
+test(empty_use_expand_variable_is_not_listed,
+     [ setup(profiletest:save_env('VIDEO_CARDS', Saved)),
+       cleanup(profiletest:restore_env('VIDEO_CARDS', Saved)) ]) :-
+  unsetenv('VIDEO_CARDS'),
+  preference:cache_current_stamp(Unset),
+  setenv('VIDEO_CARDS', ''),
+  preference:cache_current_stamp(Empty),
+  Unset == Empty.
+
+% USE, ACCEPT_KEYWORDS and ACCEPT_LICENSE are always listed.
+test(use_and_accept_variables_always_listed) :-
+  preference:cache_current_stamp(Stamp),
+  forall(member(Name, ['USE', 'ACCEPT_KEYWORDS', 'ACCEPT_LICENSE']),
+         memberchk(env(Name, _), Stamp)).
+
+% A configuration entry that is a directory contributes each of its files,
+% so that editing, adding or removing a file changes the stamp.
+test(files_in_config_directory_are_part_of_stamp) :-
+  profiletest:with_tree(profiletest:stamp_follows_config_directory).
+
+:- end_tests(preference_cache_stamp).
+
+
+%! profiletest:stamp_follows_config_directory(+Root)
+%
+% Root is used as the configuration directory, with package.use as a
+% directory. Modification times are set explicitly, so the test does not
+% depend on how fine the clock of the file system is.
+
+profiletest:stamp_follows_config_directory(Root) :-
+  profiletest:write_file_at(Root, 'package.use/00-first', 'cat/pkg flag1\n'),
+  os:compose_path(Root, 'package.use/00-first', First),
+  os:compose_path(Root, 'package.use/10-second', Second),
+  set_time_file(First, _, [modified(1000)]),
+  setup_call_cleanup(
+    asserta(config:portage_confdir(Root), Ref),
+    ( preference:cache_current_stamp(Start),
+      memberchk(src(First, _), Start),
+      set_time_file(First, _, [modified(2000)]),
+      preference:cache_current_stamp(Edited),
+      profiletest:write_file_at(Root, 'package.use/10-second', 'cat/pkg flag2\n'),
+      preference:cache_current_stamp(Added),
+      memberchk(src(Second, _), Added),
+      delete_file(Second),
+      preference:cache_current_stamp(Removed),
+      Start \== Edited,
+      Edited \== Added,
+      Removed == Edited
+    ),
+    erase(Ref)).
+
+
+%! profiletest:save_env(+Name, -Saved)
+%
+% Saved remembers whether environment variable Name is set, and to what.
+
+profiletest:save_env(Name, Saved) :-
+  ( getenv(Name, Value) -> Saved = set(Value) ; Saved = unset ).
+
+
+%! profiletest:restore_env(+Name, +Saved)
+%
+% Puts environment variable Name back as profiletest:save_env/2 found it.
+
+profiletest:restore_env(Name, set(Value)) :- setenv(Name, Value).
+profiletest:restore_env(Name, unset) :- unsetenv(Name).

@@ -191,8 +191,10 @@ config:profile_loading(client,     live).
 config:profile_loading(server,     cached).
 
 % Materialized preference state (Knowledge/preference.qlf).  Requires kb:load
-% before preference:init.  Stamp covers kb.qlf, profile.qlf, /etc/portage,
-% world/set files, use.desc, and USE/ACCEPT_* environment variables.
+% before preference:init.  Stamp covers kb.qlf, profile.qlf, /etc/portage
+% (including the files inside package.use/ style directories), world/set
+% files, use.desc, and the USE, ACCEPT_*, ARCH and USE_EXPAND environment
+% variables (see preference:cache_stamp_input/1).
 
 config:preference_cache(standalone, cached).
 config:preference_cache(daemon,     cached).

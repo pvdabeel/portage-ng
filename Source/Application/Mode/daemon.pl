@@ -478,13 +478,10 @@ daemon:seed_pref_sig :-
 % (preference:cache_current_stamp/1): the modification times of the
 % knowledge base, the profile cache, the world file, the set files and
 % the files in the configuration directory, together with the values of
-% USE, ACCEPT_KEYWORDS and ACCEPT_LICENSE.
+% the environment variables the preferences read.
 %
-% Two things follow from using that stamp. The daemon notices a change
-% exactly when a standalone run would, and it has the same blind spot: a
-% configuration entry that is a directory (package.use/ with several files
-% in it) is recorded as a directory only, so a change to a file inside it
-% is not seen.
+% Because that stamp is used, the daemon notices a change exactly when a
+% standalone run would.
 
 daemon:current_pref_sig(Env, pref_sig(PrefEnv, Stamp)) :-
   findall(K-V,
