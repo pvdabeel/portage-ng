@@ -255,6 +255,120 @@ interface:process_snapshot_flag :-
   ).
 
 
+% -----------------------------------------------------------------------------
+%  State a command line leaves behind
+% -----------------------------------------------------------------------------
+
+%! interface:flag_state(?Head) is nondet.
+%
+% The facts, other than preference:local_flag/1, that processing a command
+% line can add or remove. A program that handles one command line and
+% exits never has to undo them. The daemon handles one command line after
+% another in the same process, and without undoing them a --color n,
+% --verbose or --exclude of one request would also apply to every request
+% after it. interface:save_flag_state/0 and interface:restore_flag_state/0
+% work from this list, so a fact that interface:process_flags/0 or
+% interface:process_repeated_flags/0 starts to write has to be added here.
+
+interface:flag_state(config:verbose(_)).
+interface:flag_state(config:choice_log(_)).
+interface:flag_state(config:show_build_logs(_)).
+interface:flag_state(config:cli_ci(_)).
+interface:flag_state(config:interface_printing_style(_)).
+interface:flag_state(config:cli_jobs(_)).
+interface:flag_state(config:cli_load_average(_)).
+interface:flag_state(config:cli_prefix(_)).
+interface:flag_state(config:color_output).
+interface:flag_state(config:show_use_descriptions(_)).
+interface:flag_state(config:continue_on_failure(_)).
+interface:flag_state(config:skip_atom(_)).
+interface:flag_state(config:excluded_atom(_)).
+interface:flag_state(config:usepkg_exclude_atom(_)).
+interface:flag_state(config:usepkg_include_atom(_)).
+interface:flag_state(config:dep_favour(_)).
+interface:flag_state(config:dep_avoid(_)).
+interface:flag_state(config:dep_preset(_)).
+interface:flag_state(config:dep_hide(_)).
+interface:flag_state(config:dep_early(_)).
+interface:flag_state(config:dep_late(_)).
+interface:flag_state(snapshot:active_id(_)).
+
+
+%! interface:save_flag_state is det.
+%
+% Remembers the facts of interface:flag_state/1 as they are now, and
+% whether profiling is switched on. The daemon calls this once, after its
+% own command line has been processed and before it serves a request, so
+% what is remembered is the state every request should start from.
+
+:- dynamic interface:saved_flag_state_/2.
+:- dynamic interface:saved_instrumentation_/1.
+
+interface:save_flag_state :-
+  retractall(interface:saved_flag_state_(_, _)),
+  forall(interface:flag_state(Head),
+         ( interface:flag_state_facts(Head, Facts),
+           assertz(interface:saved_flag_state_(Head, Facts)) )),
+  retractall(interface:saved_instrumentation_(_)),
+  interface:instrumentation_on(On),
+  assertz(interface:saved_instrumentation_(On)).
+
+
+%! interface:restore_flag_state is det.
+%
+% Puts the facts of interface:flag_state/1 back as
+% interface:save_flag_state/0 found them, in the same order, and switches
+% profiling and the choice log back to what they were. Does nothing when
+% nothing was saved.
+
+interface:restore_flag_state :-
+  forall(interface:saved_flag_state_(Head, Facts),
+         ( interface:flag_state_facts(Head, Now),
+           ( Now == Facts
+           -> true
+           ;  retractall(Head),
+              forall(member(Fact, Facts), assertz(Fact))
+           ) )),
+  ( interface:saved_instrumentation_(Saved),
+    interface:instrumentation_on(Current),
+    Current \== Saved
+  -> set_prolog_flag(instrumentation, Saved)
+  ;  true
+  ),
+  ( interface:saved_flag_state_(_, _),
+    \+ config:choice_log(true),
+    catch(choicelog:armed, _, fail)
+  -> choicelog:disarm
+  ;  true
+  ).
+
+
+%! interface:instrumentation_on(-Bool) is det.
+%
+% Bool is true when the Prolog flag `instrumentation` is set to true, which
+% is what --profile does, and false otherwise.
+
+interface:instrumentation_on(Bool) :-
+  ( current_prolog_flag(instrumentation, true)
+  -> Bool = true
+  ;  Bool = false
+  ).
+
+
+%! interface:flag_state_facts(+Head, -Facts) is det.
+%
+% Facts are the facts that match Head, in their order in the database.
+% Facts is empty when the predicate does not exist yet, which is the case
+% for a fact that is only ever asserted by a command line and for a module
+% that is loaded on demand.
+
+interface:flag_state_facts(Head, Facts) :-
+  ( predicate_property(Head, dynamic)
+  -> findall(Head, clause(Head, true), Facts)
+  ;  Facts = []
+  ).
+
+
 %! interface:get_mode(-Mode) is det.
 %
 % Unifies Mode with the --mode value from the command line

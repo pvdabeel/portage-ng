@@ -623,6 +623,14 @@ The canonical load graph for standalone is in `portage-ng.pl`:
   enabled. Anything new that a request can change in the `preference:`
   facts must either be reset in `daemon:isolate_state/4` or be part of
   that signature.
+- What a command line switches on or off must not reach the next
+  request. `preference:local_flag/1` is cleared per request; every other
+  fact a command line writes (`config:verbose/1`, `config:color_output/0`,
+  `config:excluded_atom/1`, `snapshot:active_id/1`, ...) is listed in
+  `interface:flag_state/1` (`Source/Application/Interface/flags.pl`) and
+  put back by `interface:restore_flag_state/0` to what it was when the
+  daemon started. A new fact written by `interface:process_flags/0` goes
+  into that list; unit `interface_flag_state` fails when it is missing.
 - In plunit a test run that is halted or aborted halfway can still end
   with "All N tests passed" and exit status 0. Count the individual
   `passed (` lines.

@@ -63,6 +63,7 @@ daemon:start :-
   retractall(daemon:running),
   assertz(daemon:running),
   daemon:seed_pref_sig,
+  interface:save_flag_state,
   at_halt(cleanup(SocketPath, PidPath)),
   current_prolog_flag(pid, Pid),
   format('Daemon started (PID ~w), listening on ~w~n', [Pid, SocketPath]),
@@ -366,6 +367,12 @@ daemon:dispatch(_, _In, Out) :-
 % and per-request preference flags, injects the new arguments,
 % applies client environment overrides, and re-initializes preferences.
 %
+% What the command line of the previous request switched on or off is
+% undone first (interface:restore_flag_state/0), so that a --color n,
+% --verbose or --exclude of one request does not apply to the next. The
+% state that is restored is the one the daemon had when it started
+% serving (interface:save_flag_state/0 in daemon:start/0).
+%
 % Client `--mode ipc` is rewritten to `--mode standalone` before argv
 % parsing: ipc is only a client transport, while preference/profile
 % caches and other mode-keyed config are defined for standalone/daemon.
@@ -383,6 +390,7 @@ daemon:isolate_state(Args0, Cols, Rows, Env) :-
   interface:load_argv(Args),
   set_prolog_flag(argv, Args),
   retractall(preference:local_flag(_)),
+  interface:restore_flag_state,
   retractall(daemon:client_tty_size(_,_)),
   ( integer(Cols), integer(Rows), Cols > 0, Rows > 0
   -> assertz(daemon:client_tty_size(Rows, Cols))

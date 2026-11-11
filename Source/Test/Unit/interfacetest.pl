@@ -258,6 +258,95 @@ help_column(Text, Needle, Col) :-
 
 
 % -----------------------------------------------------------------------------
+%  State a command line leaves behind
+% -----------------------------------------------------------------------------
+
+:- begin_tests(interface_flag_state).
+
+% The daemon handles one command line after another. What one of them
+% switched on or off must be gone before the next one is processed.
+test(restore_undoes_what_a_command_line_changed,
+     [ setup(interface:save_flag_state),
+       cleanup(interface:restore_flag_state) ]) :-
+  findall(Head-Facts,
+          ( interface:flag_state(Head),
+            interface:flag_state_facts(Head, Facts) ),
+          Before),
+  asserta(config:verbose(true)),
+  retractall(config:color_output),
+  asserta(config:excluded_atom('cat/pkg')),
+  asserta(config:skip_atom('cat/other')),
+  asserta(config:interface_printing_style(column)),
+  asserta(config:cli_jobs(7)),
+  asserta(config:cli_ci(true)),
+  findall(Head-Facts,
+          ( interface:flag_state(Head),
+            interface:flag_state_facts(Head, Facts) ),
+          Changed),
+  interface:restore_flag_state,
+  findall(Head-Facts,
+          ( interface:flag_state(Head),
+            interface:flag_state_facts(Head, Facts) ),
+          After),
+  Changed \=@= Before,
+  After =@= Before.
+
+% The order of the facts is part of the state: readers take the first one.
+test(restore_keeps_fact_order) :-
+  setup_call_cleanup(
+    ( findall(S, retract(config:interface_printing_style(S)), Original),
+      assertz(config:interface_printing_style(short)),
+      assertz(config:interface_printing_style(fancy)),
+      interface:save_flag_state
+    ),
+    ( asserta(config:interface_printing_style(column)),
+      interface:restore_flag_state,
+      findall(S, config:interface_printing_style(S), Styles),
+      Styles == [short, fancy]
+    ),
+    ( retractall(config:interface_printing_style(_)),
+      forall(member(S, Original), assertz(config:interface_printing_style(S))),
+      interface:save_flag_state
+    )).
+
+% Every fact that flag processing writes, apart from the per-request
+% preference flags, has to be in interface:flag_state/1. Otherwise it stays
+% behind in the daemon.
+test(every_fact_written_by_flag_processing_is_listed) :-
+  findall(Fact,
+          ( member(Head, [ process_flags,
+                           process_repeated_flags,
+                           process_snapshot_flag,
+                           assert_valid_style(_),
+                           assert_valid_optimize(_) ]),
+            clause(interface:Head, Body),
+            sub_term(Goal, Body),
+            nonvar(Goal),
+            interfacetest:written_fact(Goal, Fact)
+          ),
+          Facts),
+  Facts \== [],
+  forall(member(Fact, Facts),
+         ( Fact = preference:local_flag(_)
+         -> true
+         ;  \+ \+ interface:flag_state(Fact)
+         )).
+
+:- end_tests(interface_flag_state).
+
+
+%! interfacetest:written_fact(+Goal, -Fact)
+%
+% Goal adds or removes Fact in the database.
+
+interfacetest:written_fact(asserta(Fact), Fact).
+interfacetest:written_fact(assertz(Fact), Fact).
+interfacetest:written_fact(assert(Fact), Fact).
+interfacetest:written_fact(retract(Fact), Fact).
+interfacetest:written_fact(retractall(Fact), Fact).
+
+
+% -----------------------------------------------------------------------------
 %  Comprehensive coverage tests for Interface/* andInterface/Action/*
 % -----------------------------------------------------------------------------
 
