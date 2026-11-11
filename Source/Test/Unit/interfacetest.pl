@@ -45,7 +45,8 @@ test(handler_flags_unique) :-
   Sorted == Set.
 
 % Order is load-bearing: --shell must be dispatched before --merge, because
-% merge(true) is the optparse default (spec.pl) and matches any command line.
+% merge(true) is the default in the flag list (spec.pl) and matches any command
+% line.
 test(shell_precedes_merge_catchall) :-
   findall(Flag, interface:request_handler(Flag, _, _, _, _), Flags),
   once(nth0(ShellRun, Flags, shellrun)),
@@ -262,6 +263,14 @@ help_column(Text, Needle, Col) :-
 
 :- begin_tests(interface_and_actions_full_coverage).
 
+% True when parsing Argv throws an error that matches Expected. Fails when
+% the command line is accepted, so a mistake that goes unnoticed is caught.
+argv_error(Argv, Expected) :-
+  catch(( interface:parse_argv(Argv, _, _), Thrown = none ),
+        Error,
+        Thrown = thrown(Error)),
+  Thrown = thrown(Expected).
+
 test(argv_version_exitcodes_target_flags_verify_requests) :-
   redefine_system_predicate(interface:halt(_)),
   redefine_system_predicate(interface:prolog),
@@ -297,24 +306,73 @@ test(argv_version_exitcodes_target_flags_verify_requests) :-
               error(existence_error(commandline_option, '--unknown'), _), true),
         catch(interface:parse_argv(['--unknown'], _, _),
               error(existence_error(commandline_option, '--unknown'), _), true),
-        catch(interface:parse_argv(['-j=4'], _, _),
-              error(syntax_error(_), _), true),
-        catch(interface:parse_argv(['--jobs'], _, _),
-              error(type_error(_, _), _), true),
-        catch(interface:parse_argv(['--jobs', 'notanint'], _, _),
-              error(type_error(flag_value, integer), _), true),
-        catch(interface:parse_argv(['--load-average', 'notafloat'], _, _),
-              error(type_error(flag_value, float), _), true),
-        catch(interface:parse_argv(['--pretend=maybe'], _, _),
-              error(type_error(flag_value, boolean), _), true),
+        % Where the parser differs from library(optparse) on purpose.
+        interface:parse_argv(['-1', 'cat/pkg'], OneshotOpts, ['cat/pkg']),
+        memberchk(oneshot(true), OneshotOpts),
+        interface:parse_argv(['--load-average', '2'], WholeOpts, []),
+        memberchk(loadavg(2.0), WholeOpts),
+        interface:parse_argv(['--jobs', '2', '--jobs=8'], LastOpts, []),
+        memberchk(jobs(8), LastOpts),
+        \+ memberchk(jobs(2), LastOpts),
+        interface:parse_argv(['-', 'a', '--pretend', 'b'], _, ['-', 'a', 'b']),
+        % Every mistake is an error that names the option and the value.
+        argv_error(['--unknown=val'],
+          error(existence_error(commandline_option, '--unknown'), _)),
+        argv_error(['--unknown'],
+          error(existence_error(commandline_option, '--unknown'), _)),
+        argv_error(['--p'],
+          error(existence_error(commandline_option, '--p'), _)),
+        argv_error(['-j=4'],
+          error(syntax_error(commandline_option_value), commandline_option('-j=4'))),
+        argv_error(['--jobs'],
+          error(existence_error(commandline_option_value, '--jobs'), _)),
+        argv_error(['--color'],
+          error(existence_error(commandline_option_value, '--color'), _)),
+        argv_error(['--jobs', 'notanint'],
+          error(type_error(integer, notanint), commandline_option('--jobs'))),
+        argv_error(['-jx'],
+          error(type_error(integer, x), commandline_option('-j'))),
+        argv_error(['--load-average', 'notafloat'],
+          error(type_error(float, notafloat), commandline_option('--load-average'))),
+        argv_error(['--pretend=maybe'],
+          error(type_error(boolean, maybe), commandline_option('--pretend'))),
         interface:drop_end_of_options(['--', 'a'], ['a']),
         interface:drop_end_of_options(['a'], ['a']),
+        % The explanation and exit status for each kind of mistake.
+        interface:argv_error_text(
+          error(existence_error(commandline_option, '--merg'), _), 1,
+          ['Error: Unknown option --merg.', _DidYouMean,
+           'Use --help for available options.']),
+        interface:argv_error_text(
+          error(existence_error(commandline_option, '--zzzzzz'), _), 1,
+          ['Error: Unknown option --zzzzzz.',
+           'Use --help for available options.']),
+        interface:argv_error_text(
+          error(existence_error(commandline_option_value, '--color'),
+                commandline_option('--color')), 2,
+          ['Error: Option --color needs a value.'|_]),
+        interface:argv_error_text(
+          error(type_error(integer, x), commandline_option('--jobs')), 2,
+          ['Error: Option --jobs expects a whole number, got \'x\'.'|_]),
+        interface:argv_error_text(
+          error(type_error(float, x), commandline_option('--load-average')), 2,
+          ['Error: Option --load-average expects a number, got \'x\'.'|_]),
+        interface:argv_error_text(
+          error(type_error(boolean, maybe), commandline_option('--pretend')), 2,
+          ['Error: Option --pretend expects true or false, got \'maybe\'.'|_]),
+        interface:argv_error_text(
+          error(type_error(term, x), commandline_option('--odd')), 2, _),
+        interface:argv_error_text(
+          error(syntax_error(commandline_option_value),
+                commandline_option('-j=4')), 2,
+          ['Error: Cannot read option -j=4.'|_]),
+        \+ interface:argv_error_text(error(other_err, _), _, _),
         catch(interface:argv_handle_parse_error(
                 error(existence_error(commandline_option, '--merg'), _)),
               test_halt(1), true),
         catch(interface:argv_handle_parse_error(
-                error(existence_error(commandline_option, '--zzzzzz'), _)),
-              test_halt(1), true),
+                error(type_error(integer, x), commandline_option('--jobs'))),
+              test_halt(2), true),
         catch(interface:argv_handle_parse_error(error(other_err, _)),
               error(other_err, _), true),
         interface:flag_similarity("", "", 0.0),

@@ -597,6 +597,36 @@ The canonical load graph for standalone is in `portage-ng.pl`:
   file (it is ordinary JavaScript — `node --check` it) and keep it
   free of the literal text `</script`.
 
+### Daemon and IPC clients (do not regress)
+- Two clients speak one protocol: `Source/Application/Client/ipclient.pl`
+  (SWI-Prolog, behind `portage-ng-dev --mode ipc`) and
+  `Source/Application/Client/ipcclient.cpp` (native, `make ipcclient`).
+  A change to the request term, to the closing `NUL EXIT:<code>` line or
+  to the list of forwarded environment variables
+  (`ipclient:forwarded_env_vars/1`, `kForwardedEnv`) goes into both;
+  `daemontest.pl` unit `daemon_security` runs the native client against
+  a test listener.
+- "The daemon is ready" means a connection is accepted
+  (`ipclient:wait_for_daemon/2`, `wait_for_daemon` in the C++ client),
+  never that the socket file exists: a killed daemon leaves its socket
+  file behind.
+- A `halt/1` inside a request cannot be caught. In SWI-Prolog 10.1.20
+  `catch/3` runs its recovery goal for `unwind(halt(_))` and the halt
+  then continues, so the daemon ends. Argument errors are therefore
+  answered without a halt: `daemon:isolate_state/4` calls
+  `interface:load_argv/1`, which throws, and `daemon:handle_error/3`
+  prints the text of `interface:argv_error_text/3`. Do not add a
+  `halt/1` to a code path a daemon request can reach.
+- `daemon:apply_client_env/1` rebuilds the preferences only when
+  `daemon:current_pref_sig/2` changes (forwarded environment + the
+  preference cache stamp) and only while the preference cache is
+  enabled. Anything new that a request can change in the `preference:`
+  facts must either be reset in `daemon:isolate_state/4` or be part of
+  that signature.
+- In plunit a test run that is halted or aborted halfway can still end
+  with "All N tests passed" and exit status 0. Count the individual
+  `passed (` lines.
+
 ### Non-interactive / sandbox robustness
 - Terminal size lookups must go through `console:printing_tty_size/2` (direct `tty_size/2` may throw in non-tty environments).
 - Do NOT run `--sync` / repository syncing from inside the sandbox. The user will run `--sync` externally when needed.

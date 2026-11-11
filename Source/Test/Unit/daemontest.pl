@@ -33,6 +33,18 @@ daemontest:cpp_client_bin(Bin) :-
                      [access(execute), file_errors(fail)]).
 
 
+% Reply is everything the daemon writes to a client for Request, including
+% the closing NUL and EXIT line.
+daemontest:dispatch_reply(Request, Reply) :-
+  tmp_file(daemonreply, Tmp),
+  setup_call_cleanup(
+    open(Tmp, write, Out, [encoding(utf8)]),
+    daemon:dispatch(Request, Out, Out),
+    close(Out)),
+  read_file_to_string(Tmp, Reply, [encoding(utf8)]),
+  catch(delete_file(Tmp), _, true).
+
+
 daemontest:with_temp_dir(Goal) :-
   tmp_file(daemontest, Tmp),
   ( exists_file(Tmp) -> delete_file(Tmp) ; true ),
@@ -180,13 +192,31 @@ test(daemon_ipc_ipclient_full_coverage) :-
                 call_cleanup(daemon:handle_request(GoodIn, NullOut), close(GoodIn)),
                 daemon:dispatch(request(['--version'], 80, 24), NullOut, NullOut),
                 daemon:dispatch(unknown_term_xyz, NullOut, NullOut),
+                % A command line the daemon cannot read is answered with the
+                % explanation and exit status of a standalone run; it does
+                % not stop the daemon.
+                daemontest:dispatch_reply(
+                  request(['--no-such-option'], 80, 24, []), UnknownReply),
+                once(sub_string(UnknownReply, _, _, _,
+                                "Error: Unknown option --no-such-option.")),
+                once(sub_string(UnknownReply, _, _, 0, "\000\EXIT:1\n")),
+                daemontest:dispatch_reply(
+                  request(['--jobs', 'x'], 80, 24, []), ValueReply),
+                once(sub_string(ValueReply, _, _, _,
+                                "Error: Option --jobs expects a whole number, got 'x'.")),
+                once(sub_string(ValueReply, _, _, 0, "\000\EXIT:2\n")),
                 catch(daemon:dispatch(shutdown, NullOut, NullOut), daemon_halt(0), true),
                 wrap_predicate(interface:process_requests(_), test_cov, _, throw(boom_req)),
                 daemon:dispatch(request(['--version'], 0, 0, []), NullOut, NullOut),
                 daemon:dispatch(request(['--sync'], 0, 0, []), NullOut, NullOut),
                 unwrap_predicate(interface:process_requests/1, test_cov),
-                daemon:accept_loop_error(ignored_socket_err),
-                catch(daemon:accept_loop_error(daemon_halt(0)), daemon_halt(0), true),
+                daemon:accept_loop_error(error(io_error(write, closed), _)),
+                daemon:accept_loop_error(error(socket_error(epipe, 'Broken pipe'), _)),
+                retractall(message:catch_log_warned('daemon request')),
+                daemon:accept_loop_error(error(unexpected_fault, _)),
+                message:catch_log_warned('daemon request'),
+                daemon:accept_loop_error(error(unexpected_fault, _)),
+                retractall(message:catch_log_warned('daemon request')),
                 EC1 = exit_code(0),
                 daemon:handle_error(NullOut, halt(2), EC1),
                 EC2 = exit_code(0),
@@ -196,13 +226,14 @@ test(daemon_ipc_ipclient_full_coverage) :-
               close(NullOut)),
             % daemon:start + accept_loop via real Unix domain socket + client thread
             thread_create(
-              ( ipclient:wait_for_file(SockPath, 500),
-                system:sleep(0.05),
-                ipclient:socket_connectable(SockPath),
+              ( ipclient:wait_for_daemon(SockPath, 500),
                 ipclient:send_term(SockPath, malformed_req),
                 ipclient:send_term(SockPath, shutdown)
               ),
               ClientTid, []),
+            % The halt stub above throws daemon_halt/1. Like a real halt it is
+            % not an error(_, _) term, so the accept loop lets it through and
+            % the shutdown request ends daemon:start.
             catch(daemon:start, daemon_halt(0), true),
             catch(thread_join(ClientTid, _), _, true),
             retractall(daemon:running),
@@ -342,9 +373,10 @@ test(daemon_ipc_ipclient_full_coverage) :-
             % Test ipclient:connect when socket file exists (plain file) but is not connectable
             setup_call_cleanup(open(SockPath, write, PlainS), write(PlainS, 'x'), close(PlainS)),
             ipclient:connect(1),
-            ipclient:wait_for_file(SockPath, 1),
+            % A socket file that nobody listens on is not a daemon that is ready.
+            \+ ipclient:wait_for_daemon(SockPath, 2),
             catch(delete_file(SockPath), _, true),
-            ipclient:wait_for_file(SockPath, 1),
+            \+ ipclient:wait_for_daemon(SockPath, 1),
             ipclient:wait_for_socket_gone(SockPath, 1),
             setup_call_cleanup(open(SockPath, write, PlainS2), write(PlainS2, 'x'), close(PlainS2)),
             ipclient:wait_for_socket_gone(SockPath, 1),
@@ -362,6 +394,19 @@ test(daemon_ipc_ipclient_full_coverage) :-
             setenv('PORTAGE_NG_IPC_AUTOSTART', '0'),
             ipclient:maybe_autostart,
             unsetenv('PORTAGE_NG_IPC_AUTOSTART'),
+            % With a listener on the socket the wait ends at once and reports ready.
+            setup_call_cleanup(
+              ( unix_domain_socket(ReadySock),
+                tcp_bind(ReadySock, SockPath),
+                tcp_listen(ReadySock, 5)
+              ),
+              ( ipclient:start_daemon_background,
+                ipc:wait_for_ready(daemon, 1)
+              ),
+              ( tcp_close_socket(ReadySock),
+                catch(delete_file(SockPath), _, true)
+              )),
+            % With only a stale socket file it gives up and says so.
             setup_call_cleanup(open(SockPath, write, PlainS3), write(PlainS3, 'x'), close(PlainS3)),
             ipclient:start_daemon_background,
             catch(delete_file(SockPath), _, true),
@@ -468,7 +513,8 @@ test(ipcclient_cpp_conformance,
           tcp_bind(Srv, SockPath),
           tcp_listen(Srv, 5)
         ),
-        ( % 1. Request with single-quote arg + embedded NUL + split sentinel + exit 2
+        ( % 1. Arguments with a single quote, a backslash and a line break must
+          %    arrive unchanged; answer with embedded NUL + split sentinel + exit 2
           thread_create(
             ( tcp_accept(Srv, C1, _),
               tcp_open_socket(C1, SP1),
@@ -476,7 +522,8 @@ test(ipcclient_cpp_conformance,
               set_stream(In1, encoding(utf8)),
               set_stream(Out1, encoding(octet)),
               read_term(In1, ReqTerm, []),
-              assertion(ReqTerm = request(['--pretend', 'a''b'], _, _, ReqEnv)),
+              assertion(ReqTerm = request(['--pretend', 'a''b', 'c\\d', 'e\nf\rg'],
+                                          _, _, ReqEnv)),
               assertion(memberchk('USE'-'wayland -X', ReqEnv)),
               format(Out1, 'ok~cNOT~cEX', [0, 0]),
               flush_output(Out1),
@@ -489,7 +536,7 @@ test(ipcclient_cpp_conformance,
               close(In1), close(Out1)
             ),
             T1, []),
-          process_create(Bin, ['--pretend', 'a''b'],
+          process_create(Bin, ['--pretend', 'a''b', 'c\\d', 'e\nf\rg'],
                          [env(Env), stdout(pipe(R1Out)), stderr(null), process(P1)]),
           set_stream(R1Out, encoding(octet)),
           read_string(R1Out, _, Out1Str), close(R1Out),

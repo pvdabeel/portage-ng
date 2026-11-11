@@ -43,7 +43,6 @@ beside the sources.
 
 loader:group(common_libraries,
    [library('apply_macros'),
-    library('optparse'),
     library('lists'),
     library('error'),
     library('option'),

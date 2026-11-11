@@ -19,7 +19,7 @@ here via include/1; every fragment contributes clauses to this module:
 
   - Interface/target.pl    : target validation and resolution
   - Interface/version.pl   : version strings and system information
-  - Interface/spec.pl      : the optparse command-line flag specification
+  - Interface/spec.pl      : the list of command-line flags
   - Interface/argv.pl      : argv parsing, parse errors, flag suggestions
   - Interface/flags.pl     : flag processing, derived accessors, tty and cwd init
   - Interface/verify.pl    : mode flag verification and early-exit handlers

@@ -248,10 +248,11 @@ daemon:accept_loop(Socket) :-
   stream_pair(StreamPair, In, Out),
   setup_call_cleanup(
     ( set_stream(In, encoding(utf8)),
-      set_stream(Out, encoding(utf8)),
-      set_stream(Out, buffer_size(65536))
+      set_stream(Out, encoding(utf8))
     ),
-    ( catch(handle_request(In, Out), Err, accept_loop_error(Err))
+    ( catch(handle_request(In, Out),
+            error(Formal, Context),
+            accept_loop_error(error(Formal, Context)))
     -> true
     ;  true
     ),
@@ -263,14 +264,31 @@ daemon:accept_loop(Socket) :-
 
 %! daemon:accept_loop_error(+Error) is det.
 %
-% Re-raises halt unwinds so shutdown terminates the accept loop, while
-% swallowing per-connection socket errors (e.g. client disconnect / EPIPE).
+% Decides what an error that escaped from one connection means for the
+% daemon. An I/O or socket error means the client went away before its
+% answer was written; that is ordinary and the daemon moves on to the
+% next connection without a word. Any other error is a fault in the
+% daemon: it is reported as a warning on the daemon's own output, once,
+% and the daemon keeps serving.
+%
+% The accept loop only catches error(_, _) terms. A halt or an abort is
+% not one and is not caught, so a shutdown request or the inactivity
+% timer still ends the loop.
 
+daemon:accept_loop_error(error(Formal, _)) :-
+  daemon:client_gone_error(Formal),
+  !.
 daemon:accept_loop_error(Err) :-
-  ( Err = unwind(_) ; Err = daemon_halt(_) ; Err = halt(_) ),
-  !,
-  throw(Err).
-daemon:accept_loop_error(_).
+  message:catch_log_report('daemon request', Err).
+
+
+%! daemon:client_gone_error(+Formal) is semidet.
+%
+% True for the errors a write to, or a read from, a closed connection
+% produces.
+
+daemon:client_gone_error(io_error(_, _)).
+daemon:client_gone_error(socket_error(_, _)).
 
 
 %! daemon:handle_request(+In, +Out) is det.
@@ -320,10 +338,9 @@ daemon:dispatch(shutdown, _In, Out) :-
 daemon:dispatch(request(Args, Cols, Rows, Env), _In, Out) :-
   !,
   reset_timer,
-  isolate_state(Args, Cols, Rows, Env),
   ExitCode = exit_code(0),
   catch(
-    run_with_output(Out, ExitCode),
+    run_with_output(Out, request(Args, Cols, Rows, Env), ExitCode),
     Error,
     ( format(Out, 'Error: ~w~n', [Error]),
       nb_setarg(1, ExitCode, 1) )
@@ -355,13 +372,17 @@ daemon:dispatch(_, _In, Out) :-
 % Leaving mode=ipc would skip Knowledge/profile.qlf (license groups)
 % and Knowledge/preference.qlf, so ACCEPT_LICENSE="@FREE" expands to
 % nothing and every package spuriously looks license-masked.
+%
+% The arguments are parsed first and nothing else is touched until that
+% has succeeded. A command line that cannot be parsed throws from here
+% and leaves the state of the previous request in place, so the daemon
+% is never left holding arguments it cannot read.
 
 daemon:isolate_state(Args0, Cols, Rows, Env) :-
-  retractall(interface:argv_(_,_)),
-  retractall(preference:local_flag(_)),
   rewrite_ipc_mode_args(Args0, Args),
+  interface:load_argv(Args),
   set_prolog_flag(argv, Args),
-  interface:argv(_, _),
+  retractall(preference:local_flag(_)),
   retractall(daemon:client_tty_size(_,_)),
   ( integer(Cols), integer(Rows), Cols > 0, Rows > 0
   -> assertz(daemon:client_tty_size(Rows, Cols))
@@ -393,15 +414,32 @@ daemon:rewrite_ipc_mode_args(ArgsIn, ArgsOut) :-
 
 %! daemon:apply_client_env(+Env:list) is det.
 %
-% Applies client environment overrides for this request and re-initializes
-% preferences only when forwarded environment overrides or tracked on-disk
-% configuration files have changed since the active snapshot.
+% Makes the environment variables the client sent the ones this request
+% sees (interface:getenv/2 looks at daemon:client_env/2 first), and brings
+% the preferences up to date: USE flags, accepted keywords and licenses,
+% masks, sets and the world file.
+%
+% Building the preferences takes longer than answering a small request, so
+% they are rebuilt only when something they are built from has changed.
+% That is decided by comparing a signature of those inputs with the
+% signature taken when the preferences were last built; see
+% daemon:current_pref_sig/2. When the two are equal the preferences in
+% memory are kept. That is safe because a request does not change them.
+% The only preference facts a request writes are the
+% preference:local_flag/1 facts of its own command line, and
+% daemon:isolate_state/4 clears those for every request.
+%
+% The signature is used only when the preference cache is enabled for the
+% mode of the request (config:preference_cache/2). With the cache disabled
+% the configuration asks for the files to be read every time, and then
+% they are read for every request.
 
 daemon:apply_client_env(Env) :-
   retractall(daemon:client_env(_,_)),
   forall(member(Name-Value, Env),
     assertz(daemon:client_env(Name, Value))),
-  ( daemon:current_pref_sig(Env, Sig),
+  ( preference:cache_enabled,
+    daemon:current_pref_sig(Env, Sig),
     daemon:active_pref_sig(PrevSig),
     PrevSig =@= Sig
   -> true
@@ -419,8 +457,9 @@ daemon:apply_client_env(Env) :-
 
 %! daemon:seed_pref_sig is det.
 %
-% Records the startup preference signature so the first request with no
-% environment overrides reuses the resident preference state.
+% Records the signature of the preferences the daemon built while it
+% started. The first request that sends no environment variables of its
+% own then finds the signature unchanged and uses those preferences.
 
 daemon:seed_pref_sig :-
   retractall(daemon:active_pref_sig(_)),
@@ -431,6 +470,21 @@ daemon:seed_pref_sig :-
 
 
 %! daemon:current_pref_sig(+Env, -Sig) is semidet.
+%
+% Sig describes everything the preferences are built from, as it is now.
+% It has two parts. The first is the list of environment variables the
+% client sent, sorted, without the two that only describe its terminal.
+% The second is the stamp of the preference cache
+% (preference:cache_current_stamp/1): the modification times of the
+% knowledge base, the profile cache, the world file, the set files and
+% the files in the configuration directory, together with the values of
+% USE, ACCEPT_KEYWORDS and ACCEPT_LICENSE.
+%
+% Two things follow from using that stamp. The daemon notices a change
+% exactly when a standalone run would, and it has the same blind spot: a
+% configuration entry that is a directory (package.use/ with several files
+% in it) is recorded as a directory only, so a change to a file inside it
+% is not seen.
 
 daemon:current_pref_sig(Env, pref_sig(PrefEnv, Stamp)) :-
   findall(K-V,
@@ -445,7 +499,9 @@ daemon:current_pref_sig(Env, pref_sig(PrefEnv, Stamp)) :-
 
 %! daemon:maybe_invalidate_pref_sig(+Args) is det.
 %
-% Drops the cached preference signature after mutating KB or world commands.
+% Forgets the recorded signature after a request that changes the
+% knowledge base or the world file, so that the next request rebuilds the
+% preferences whatever the modification times say.
 
 daemon:maybe_invalidate_pref_sig(Args) :-
   ( member(Flag, ['--sync', '--clear', '--load', '--regen', '--metadata', '--deselect']),
@@ -461,12 +517,20 @@ daemon:maybe_invalidate_pref_sig(Args) :-
 :- dynamic daemon:running/0.
 
 
-%! daemon:run_with_output(+Out, +ExitCodeTerm) is det.
+%! daemon:run_with_output(+Out, +Request, +ExitCodeTerm) is det.
 %
-% Runs interface:process_requests(standalone) with current_output
-% and current_error redirected to the socket stream Out.
+% Serves one request with standard output and standard error redirected
+% to the socket stream Out: prepares the per-request state from the
+% client's arguments and environment, then runs
+% interface:process_requests(standalone).
+%
+% The state is prepared after the redirection, not before it, so that an
+% error while reading the client's arguments (an unknown option, a value
+% of the wrong type) is handled like any other error of the request:
+% daemon:handle_error/3 writes the explanation to the client and sets the
+% exit status, and the daemon goes on to the next connection.
 
-daemon:run_with_output(Out, ExitCodeTerm) :-
+daemon:run_with_output(Out, request(Args, Cols, Rows, Env), ExitCodeTerm) :-
   stream_property(OldOut, alias(user_output)),
   stream_property(OldErr, alias(user_error)),
   current_output(OldCurr),
@@ -476,7 +540,8 @@ daemon:run_with_output(Out, ExitCodeTerm) :-
       set_output(Out)
     ),
     catch(
-      ( daemon:refresh_binpkg_index,
+      ( daemon:isolate_state(Args, Cols, Rows, Env),
+        daemon:refresh_binpkg_index,
         interface:process_requests(standalone)
       ),
       Error,
@@ -515,11 +580,22 @@ daemon:refresh_binpkg_index :-
 %
 % Interprets exceptions thrown during request processing.
 % halt/1 throws unwind(halt(Code)) in SWI-Prolog.
+%
+% A command line that cannot be parsed is answered with the explanation
+% and the exit status a standalone run gives for the same mistake
+% (interface:argv_error_text/3). Nothing halts, so the daemon keeps
+% running.
 
 daemon:handle_error(_Out, Error, ExitCodeTerm) :-
   ( Error = unwind(halt(Code)) ; Error = halt(Code) ),
   integer(Code), !,
   nb_setarg(1, ExitCodeTerm, Code).
+
+daemon:handle_error(Out, Error, ExitCodeTerm) :-
+  interface:argv_error_text(Error, Status, Lines), !,
+  forall(member(Line, Lines),
+         format(Out, '~w~n', [Line])),
+  nb_setarg(1, ExitCodeTerm, Status).
 
 daemon:handle_error(Out, Error, ExitCodeTerm) :-
   format(Out, 'Daemon error: ~w~n', [Error]),

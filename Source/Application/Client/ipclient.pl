@@ -21,6 +21,12 @@ to be started or relaunched, which happens in a child process running
 reuses the connect, status and halt predicates from here when the full
 application is loaded.
 
+A request is one term on one line, `request(Args, Cols, Rows, Env).`: the
+command-line words, the size of the terminal, and the environment variables
+the daemon has to know about. The daemon answers with the output of the
+command as UTF-8 text and closes with a NUL byte followed by the line
+`EXIT:<code>`. The client copies the output and halts with that code.
+
 main/0 is not exported on purpose: an exported main/0 would be imported
 into user when this file is loaded as part of the full application and
 clash with user:main/0 there. Callers name it as ipclient:main.
@@ -36,7 +42,7 @@ clash with user:main/0 there. Callers name it as ipclient:main.
             socket_path/1,
             pid_path/1,
             socket_connectable/1,
-            wait_for_file/2,
+            wait_for_daemon/2,
             wait_for_socket_gone/2
           ]).
 
@@ -53,9 +59,9 @@ clash with user:main/0 there. Callers name it as ipclient:main.
 
 %! ipclient:main is det.
 %
-% Dispatches --status / --cmd / --shell, otherwise connects directly on the
-% fast path (autostarting the daemon only when the initial connect fails) and
-% streams one request. Always halts.
+% Handles --status, --cmd and --shell itself. Anything else is sent to the
+% daemon as one request, and a daemon is started first when none answers.
+% Always halts.
 
 ipclient:main :-
   current_prolog_flag(argv, Args),
@@ -125,7 +131,7 @@ ipclient:socket_connectable(Path) :-
 %! ipclient:autostart_enabled is semidet.
 %
 % Same default as config:daemon_autostart(true). Override with
-% PORTAGE_NG_IPC_AUTOSTART=0|false (checked only when connect fails).
+% PORTAGE_NG_IPC_AUTOSTART=0|false (looked at only when no daemon answers).
 
 ipclient:autostart_enabled :-
   ( getenv('PORTAGE_NG_IPC_AUTOSTART', V)
@@ -157,8 +163,12 @@ ipclient:daemon_wrapper(Wrapper) :-
 
 %! ipclient:connect_with_autostart(-ExitCode) is det.
 %
-% Attempts a single Unix-socket connect immediately; falls back to background
-% daemon autostart only when no live listener accepts the connection.
+% Sends the request of this process to the daemon and gives its exit code.
+% The connection is simply tried, without looking at the socket file
+% first: a daemon is nearly always running, and then the look would be
+% wasted. Only when nobody answers, and autostart is enabled, is a daemon
+% started and the connection tried a second time. Without a daemon the
+% exit code is 1.
 
 ipclient:connect_with_autostart(ExitCode) :-
   socket_path(SocketPath),
@@ -173,6 +183,10 @@ ipclient:connect_with_autostart(ExitCode) :-
 
 
 %! ipclient:connect(-ExitCode) is det.
+%
+% Sends the request of this process to the daemon and gives its exit code.
+% Does not start a daemon: when none answers, an error is printed and the
+% exit code is 1.
 
 ipclient:connect(ExitCode) :-
   socket_path(SocketPath),
@@ -191,8 +205,10 @@ ipclient:connect_at(SocketPath, ExitCode) :-
 
 %! ipclient:try_connect_socket(+SocketPath, -In, -Out) is semidet.
 %
-% Opens a Unix-domain connection to SocketPath with a 64 KB input buffer.
-% Closes the raw socket descriptor cleanly if tcp_connect/2 fails.
+% Connects to the daemon listening on SocketPath; In and Out are the two
+% streams of the connection. Fails, after closing the socket again, when
+% nobody is listening. The input stream gets a 64 KB buffer, so that a long
+% answer is read in few system calls.
 
 ipclient:try_connect_socket(SocketPath, In, Out) :-
   unix_domain_socket(Socket),
@@ -210,6 +226,9 @@ ipclient:try_connect_socket(SocketPath, In, Out) :-
 
 
 %! ipclient:exchange(+In, +Out, -ExitCode) is det.
+%
+% Sends the request, copies the answer to the current output and closes
+% the connection. An error on the way is printed and gives exit code 1.
 
 ipclient:exchange(In, Out, ExitCode) :-
   catch(
@@ -228,8 +247,10 @@ ipclient:exchange(In, Out, ExitCode) :-
 
 %! ipclient:send_request(+Out) is det.
 %
-% Encodes `request(Args, Cols, Rows, Env).` onto Out. Checks tty(true) before
-% tty_size/2 so non-interactive runs never construct and catch an exception.
+% Writes the request term `request(Args, Cols, Rows, Env).` to Out. When
+% standard output is a terminal its size is sent, and `_CLIENT_IS_TTY` is
+% added to Env so the daemon formats its output for a terminal. Otherwise
+% the size is 80 rows by 160 columns and the terminal is not asked.
 
 ipclient:send_request(Out) :-
   current_prolog_flag(argv, RawArgs),
@@ -257,6 +278,9 @@ ipclient:local_tty_size(Rows, Cols) :-
 
 
 %! ipclient:collect_env(-Env) is det.
+%
+% Env holds a Name-Value pair for each variable of forwarded_env_vars/1
+% that is set in the environment of this process.
 
 ipclient:collect_env(Env) :-
   forwarded_env_vars(Names),
@@ -275,6 +299,10 @@ ipclient:collect_env_pairs([Name|Rest], Env) :-
 
 
 %! ipclient:forwarded_env_vars(-Names) is det.
+%
+% The environment variables that change what portage-ng computes. They are
+% sent with every request because the daemon has its own environment, not
+% that of the client. The same list is in ipcclient.cpp.
 
 ipclient:forwarded_env_vars(
   [ 'USE',
@@ -308,10 +336,17 @@ ipclient:forwarded_env_var(Name) :-
 
 %! ipclient:stream_response(+In, -ExitCode) is det.
 %
-% Streams daemon output to current_output until a NUL-prefixed `EXIT:<code>\n`
-% sentinel. Switches OS streams to octet encoding so bytes pass through C
-% buffers without UTF-8 decode/re-encode; falls back to UTF-8 on in-memory
-% capture streams (such as with_output_to/2 in unit tests).
+% Copies the answer of the daemon to the current output, up to the closing
+% NUL and `EXIT:<code>` line, and gives that code. When the connection ends
+% before the closing line, an error is printed and the code is 1.
+%
+% The answer is UTF-8 text and is passed on byte for byte: both streams are
+% set to carry plain bytes while the answer is copied, so nothing is
+% decoded and encoded again on the way, and the output gets its own
+% encoding back afterwards. The answer is therefore not converted to the
+% encoding of the locale; the C++ client passes the bytes on in the same
+% way. An output stream that cannot carry plain bytes, such as the one
+% with_output_to/2 creates, receives the answer as decoded text instead.
 
 ipclient:stream_response(In, ExitCode) :-
   current_output(Out),
@@ -329,9 +364,22 @@ ipclient:stream_response(In, ExitCode) :-
 
 %! ipclient:stream_segments(+In, +Out, -ExitCode) is det.
 %
-% C-level delimiter scan up to LF, CR, or NUL without cons-cell list allocation.
-% Guards leading NUL / EOF with peek_code/2 first so a NUL sentinel immediately
-% following a newline (or at byte 0) never enters read_string/5 as a leading NUL.
+% Copies the answer piece by piece. A piece runs up to the next line feed,
+% carriage return or NUL. read_string/5 finds that end and returns the
+% piece as one string, so the text is never taken apart into a list of
+% character codes.
+%
+% The first character of each piece is looked at before read_string/5 is
+% called. read_string/5 drops NUL characters at the start of what it reads
+% without reporting them, and the closing NUL normally comes right after a
+% line feed, that is, at the start of a piece. Without this look the end of
+% the answer would be missed.
+%
+% Neither that behaviour nor the use of NUL as an end character is
+% documented for read_string/5; both were found by testing. The daemon unit
+% test sends an answer with a NUL in the middle of a line and one right
+% after a line feed, so a change in SWI-Prolog that breaks this loop shows
+% up there.
 
 ipclient:stream_segments(In, Out, ExitCode) :-
   peek_code(In, First),
@@ -339,6 +387,11 @@ ipclient:stream_segments(In, Out, ExitCode) :-
 
 
 %! ipclient:stream_peeked(+First, +In, +Out, -ExitCode) is det.
+%
+% First is the next character of the answer, not yet read. End of input
+% means the daemon went away without the closing line. A NUL is read here
+% and may start the closing line. Any other character starts a piece of
+% output, which is read and written.
 
 ipclient:stream_peeked(-1, _In, Out, 1) :-
   !,
@@ -355,6 +408,11 @@ ipclient:stream_peeked(_, In, Out, ExitCode) :-
 
 
 %! ipclient:stream_after_sep(+Sep, +In, +Out, -ExitCode) is det.
+%
+% Sep is the character that ended a piece. A line feed or carriage return
+% is passed on. After a carriage return the output is flushed, so that a
+% progress line that rewrites itself is shown at once. A NUL may start the
+% closing line. End of input means the daemon went away.
 
 ipclient:stream_after_sep(10, In, Out, ExitCode) :-
   !,
@@ -374,6 +432,10 @@ ipclient:stream_after_sep(-1, _In, Out, 1) :-
 
 
 %! ipclient:stream_after_nul(+In, +Out, -ExitCode) is det.
+%
+% Called when a NUL has been read. When `EXIT:` follows, the rest of the
+% line is the exit code and the answer is complete. Otherwise the NUL was
+% part of the output and is passed on.
 
 ipclient:stream_after_nul(In, Out, ExitCode) :-
   peek_string(In, 5, Peek),
@@ -386,6 +448,8 @@ ipclient:stream_after_nul(In, Out, ExitCode) :-
 
 
 %! ipclient:collect_exit_code(+In, -ExitCode) is det.
+%
+% Reads the rest of the closing line and gives the exit code on it.
 
 ipclient:collect_exit_code(In, ExitCode) :-
   read_string(In, "\n\r", "", _, CodeStr),
@@ -393,6 +457,9 @@ ipclient:collect_exit_code(In, ExitCode) :-
 
 
 %! ipclient:parse_exit_code(+Text, -ExitCode) is det.
+%
+% ExitCode is the whole number written in Text, or 1 when Text is not a
+% whole number.
 
 ipclient:parse_exit_code(Text, ExitCode) :-
   ( catch(number_string(Number, Text), _, fail),
@@ -478,7 +545,8 @@ ipclient:send_command_(Cmd) :-
 
 %! ipclient:relaunch is det.
 %
-% Stops the daemon and starts a new one as soon as the socket disappears.
+% Stops the daemon, waits until its socket file is gone (six seconds at
+% most) and starts a new one.
 
 ipclient:relaunch :-
   send_command_(halt),
@@ -540,8 +608,8 @@ ipclient:ensure_process_lib :-
 %! ipclient:start_daemon_background is det.
 %
 % Starts the daemon with portage-ng-dev --mode daemon --background and
-% waits for its socket to appear. The knowledge base is loaded by that
-% child, not by this process.
+% waits, for at most a minute, until it accepts connections. The knowledge
+% base is loaded by that child, not by this process.
 
 ipclient:start_daemon_background :-
   ensure_process_lib,
@@ -565,8 +633,7 @@ ipclient:start_daemon_background :-
   process_wait(Pid, Status),
   ( Status == exit(0)
   -> socket_path(SocketPath),
-     wait_for_file(SocketPath, 6000),
-     ( access_file(SocketPath, exist)
+     ( wait_for_daemon(SocketPath, 6000)
      -> format('Daemon ready.~n', [])
      ;  format(user_error, 'Warning: daemon may not have started.~n', [])
      )
@@ -575,16 +642,22 @@ ipclient:start_daemon_background :-
   ).
 
 
-%! ipclient:wait_for_file(+Path, +Retries) is det.
+%! ipclient:wait_for_daemon(+SocketPath, +Retries) is semidet.
+%
+% True as soon as a daemon accepts a connection on SocketPath. Tries
+% Retries times, 10 ms apart, and fails when no daemon has answered by
+% then. The test is a connection and not the presence of the socket file:
+% a daemon that was killed leaves its socket file behind, and a file that
+% nobody listens on must not be taken for a daemon that is ready.
 
-ipclient:wait_for_file(_, 0) :- !.
-ipclient:wait_for_file(Path, N) :-
-  ( access_file(Path, exist)
-  -> true
-  ;  sleep(0.01),
-     N1 is N - 1,
-     wait_for_file(Path, N1)
-  ).
+ipclient:wait_for_daemon(SocketPath, _) :-
+  socket_connectable(SocketPath),
+  !.
+ipclient:wait_for_daemon(SocketPath, N) :-
+  N > 1,
+  sleep(0.01),
+  N1 is N - 1,
+  wait_for_daemon(SocketPath, N1).
 
 
 %! ipclient:wait_for_socket_gone(+Path, +Retries) is det.

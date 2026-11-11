@@ -17,8 +17,11 @@ IPCCLIENT_LDFLAGS    = -Wl,-dead_strip -Wl,-dead_strip_dylibs
 else
 IPCCLIENT_LDFLAGS    = -Wl,--as-needed -Wl,--gc-sections
 endif
-# C++17 stays on even when the environment overrides CXXFLAGS; omit RTTI,
-# exceptions and unused sections/dylibs so startup links only libc/libSystem.
+# Flags for the native IPC client. C++17 stays on even when the environment
+# overrides CXXFLAGS. The client is built without exceptions and run-time type
+# information, and the linker drops the code and the libraries it does not
+# use, so that the program needs only the system C library when it starts.
+# The Linux linker flags have not been tried since the client was rewritten.
 IPCCLIENT_CXXFLAGS   = $(CXXFLAGS) -std=c++17 -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections
 
 CERTDIR              = Certificates

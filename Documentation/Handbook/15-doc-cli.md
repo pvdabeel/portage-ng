@@ -57,12 +57,56 @@ socket as an already-running daemon.
 
 ### IPC
 
-A thin front-end that does **not** load the full resolver stack.
-It connects to a running daemon over the Unix socket, forwards the
-command-line arguments and environment, streams output back, and
-exits with the daemon's exit code.  If `--background` auto-start is
-configured and no daemon is listening, the IPC client can launch one
-automatically.  Note that `--shell` is not supported in IPC mode.
+A thin front-end that does **not** load the resolver or the knowledge
+base.  It connects to the daemon over the Unix socket, sends the
+command line, and copies the answer to its own output.  It then exits
+with the exit code the daemon reports.  `--shell` is not supported in
+IPC mode.
+
+There are two clients.  They send the same request and give the same
+output and exit code; the only difference is how long the client
+itself takes to start.
+
+| **Client** | **How to run it** | **What it needs** |
+| :--- | :--- | :--- |
+| SWI-Prolog client | `portage-ng-dev --mode ipc --pretend <pkg>` | SWI-Prolog; loads only `Source/Application/Client/ipclient.pl` |
+| Native client | `Source/Application/Wrapper/ipcclient --mode ipc --pretend <pkg>` | Nothing but the system C library; build it once with `make ipcclient` |
+
+**What is sent.**  The daemon is a separate process with its own
+environment and no terminal of its own, so the client sends along what
+the daemon cannot see for itself: the command-line words, the width and
+height of the terminal, whether its output is a terminal, and the
+environment variables that change the result of a resolve: `USE`,
+`ACCEPT_KEYWORDS`, `ACCEPT_LICENSE`, `PYTHON_TARGETS`,
+`PYTHON_SINGLE_TARGET`, `RUBY_TARGETS`, `RUBY_SINGLE_TARGET`,
+`LUA_SINGLE_TARGET`, `PERL_FEATURES`, `LLVM_SLOT`, `VIDEO_CARDS`,
+`INPUT_DEVICES`, `CPU_FLAGS_X86`, `APACHE2_MODULES` and
+`APACHE2_MPMS`.  Any other variable set in the shell of the client is
+not seen by the daemon.
+
+**What comes back.**  The answer is UTF-8 text, and both clients copy
+it to their output byte for byte, whatever the locale of the shell.  A
+standalone run in a non-UTF-8 locale (`LANG=C`) writes the line-drawing
+characters of the plan as `\uXXXX` escapes instead; in such a locale
+the two modes therefore do not print the same bytes.
+
+**Starting the daemon.**  When nobody answers on the socket, the
+client starts a daemon itself (`portage-ng-dev --mode daemon
+--background`), waits until it accepts connections, and then sends the
+request.  The first request therefore takes as long as loading the
+knowledge base; later ones do not.  A socket file left behind by a
+daemon that was killed counts as "nobody answers".  Set
+`PORTAGE_NG_IPC_AUTOSTART=0` to switch this off; the client then
+reports that no daemon is running and exits with code 1.
+
+**Mistakes on the command line.**  An unknown option or a wrong value
+gets the same message and the same exit code as in standalone mode.
+The daemon keeps running and serves the next request.
+
+**Managing the daemon.**  `--status` tells whether a daemon is running.
+`--cmd halt` stops it and `--cmd relaunch` restarts it, which is needed
+after changing portage-ng source files, because the daemon keeps the
+code it was started with.
 
 ### Client
 
@@ -189,6 +233,25 @@ requirements", for a worked example with diagrams.
 | `--ci` | Non-interactive CI mode (exit codes 0/1/2) |
 | `--jobs N` | Number of parallel jobs |
 | `--timeout N` | Abort proving/planning after N seconds (0 = no limit) |
+
+
+### How options are written
+
+A long option takes its value as the next word or after an equals
+sign: `--jobs 4` or `--jobs=4`.  A short option takes it as the next
+word or directly attached: `-j 4` or `-j4` (not `-j=4`).  An on/off
+option needs no value: `--deep` switches it on and `--no-deep` switches
+it off.  Short options cannot be combined into one word; write `-p -v`,
+not `-pv`.  When an option is given more than once, the last value
+counts (`--skip` is the exception: every value is kept).  A word that
+starts with a dash and is not a known option is an error.
+
+| **Mistake** | **Message** | **Exit code** |
+| :--- | :--- | ---: |
+| Unknown option | `Error: Unknown option --pretned.` followed by `Did you mean: --pretend?` when a similar option exists | 1 |
+| Value missing | `Error: Option --color needs a value.` | 2 |
+| Value of the wrong kind | `Error: Option --jobs expects a whole number, got 'x'.` | 2 |
+| `-j=4` | `Error: Cannot read option -j=4.` | 2 |
 
 
 ## Target syntax

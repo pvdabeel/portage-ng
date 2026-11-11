@@ -10,13 +10,19 @@
 set -eu
 
 # -----------------------------------------------------------------------------
-# Ultra-early --mode ipc fast-path (zero subshells / zero forks)
+# --mode ipc: hand over to the small client as early as possible
 # -----------------------------------------------------------------------------
 #
-# Jump straight into ipclient.pl before git env exports, subshell path
-# canonicalisation, or timeout/arg-rewrite loops when the invocation is a plain
-# ipc client request. Skip when legacy/profile/choice-log or a hard timeout is
-# requested (those need the slower path below).
+# A plain ipc request needs nothing of what the rest of this script sets up.
+# It is passed to ipclient.pl, which sends it to the daemon. That is decided
+# here, before the git environment, the directory lookups and the argument
+# rewriting further down, so that the request does not pay for them: on the
+# client side, starting this shell and swipl is most of what a request costs.
+#
+# The request stays on the ordinary path below when it asks for something this
+# script handles itself: --help, --version, --profile, --choice-log, a time
+# limit (or the mistyped --time-limit, which gets a warning there), or
+# PORTAGE_NG_IPC_LEGACY=1.
 _early_ipc=1
 _early_mode=""
 _want_help=0
@@ -27,10 +33,10 @@ for a in "$@"; do
       _early_ipc=0
       _want_help=1
       ;;
-    -V|--version|--profile|--choice-log|--timeout|--hard-time-limit)
+    -V|--version|--profile|--choice-log|--timeout|--hard-time-limit|--time-limit)
       _early_ipc=0
       ;;
-    --timeout=*|--hard-time-limit=*)
+    --timeout=*|--hard-time-limit=*|--time-limit=*)
       _early_ipc=0
       ;;
   esac
@@ -45,9 +51,11 @@ for a in "$@"; do
   _prev="$a"
 done
 
-# Resolve WRAPPER_DIR and ROOT_DIR via pure POSIX parameter expansion when $0
-# is a direct non-symlink path without dot segments; fall back to cd+pwd only
-# when $0 is symlinked, relative with '..', or resolved via PATH.
+# Find the directory of this script and the root of the project. When $0 is a
+# plain path to this file (it contains a slash, has no "." or ".." part, is not
+# a symbolic link and ends in Source/Application/Wrapper), both follow from
+# the text of $0 and no extra process is started. In every other case they are
+# found with cd and pwd in a subshell.
 WRAPPER_DIR=""
 ROOT_DIR=""
 case "$0" in
@@ -85,6 +93,10 @@ if [ "$_early_ipc" = "1" ] \
    && [ -f "$IPCLIENT_PL" ]; then
   export PORTAGE_NG_ROOT="$ROOT_DIR"
   export PORTAGE_NG_DEV="$WRAPPER_DIR/portage-ng-dev"
+  # -q prints no banner. -F none and --no-packs keep swipl from reading the
+  # system init file and from attaching add-on packs. The client uses neither,
+  # and without them it starts the same way on every machine. No speed-up
+  # could be measured from these two flags.
   exec swipl -q -F none --no-packs -f "$IPCLIENT_PL" -g ipclient:main -t halt -- "$@"
 fi
 

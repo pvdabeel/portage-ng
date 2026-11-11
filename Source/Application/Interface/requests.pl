@@ -33,8 +33,8 @@ Source/Test/Unit/interfacetest.pl).
 % Clause order is the dispatch priority order: the first handler whose
 % request_matches/3 guard succeeds wins. Order is load-bearing at the end of
 % the table: 'shellrun' and 'shell' must precede 'merge', because merge(true)
-% is the optparse default (spec.pl) and therefore matches almost any command
-% line — it acts as the final catch-all. In standalone mode that
+% is the default in the flag list (spec.pl) and therefore matches almost any
+% command line — it acts as the final catch-all. In standalone mode that
 % catch-all builds the target, the way emerge does. --pretend still
 % prints the plan and stops. Other modes keep the prove-and-print path.
 %

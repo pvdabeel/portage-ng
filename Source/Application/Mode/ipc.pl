@@ -159,15 +159,16 @@ ipc:background_command(Mode, Exe, Args) :-
 
 %! ipc:wait_for_ready(+Mode, +Pid) is det.
 %
-% Polls for mode-specific readiness instead of sleeping a fixed amount:
-% the daemon is ready once its PID file appears, the server once its
-% port accepts TCP connections.
+% Waits until the process just started is ready, for at most a minute,
+% instead of sleeping a fixed amount: the daemon is ready once it accepts
+% a connection on its socket, the server once its port accepts TCP
+% connections. The presence of the daemon's socket file is not enough,
+% because a daemon that was killed leaves that file behind.
 
 ipc:wait_for_ready(daemon, Pid) :-
   !,
   config:daemon_socket_path(SocketPath),
-  ipclient:wait_for_file(SocketPath, 6000),
-  ( ipclient:socket_connectable(SocketPath)
+  ( ipclient:wait_for_daemon(SocketPath, 6000)
   -> format('Daemon ready (PID ~w).~n', [Pid])
   ;  format(user_error, 'Warning: daemon may not have started.~n', [])
   ).

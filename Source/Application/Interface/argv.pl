@@ -23,12 +23,11 @@ INTERFACE module via interface.pl).
 % Parses and caches the command-line arguments. Options is a list of
 % opt(Value) terms matching the spec; Args is the list of positional
 % (non-option) arguments. Results are memoised in interface:argv_/2.
+%
+% A command line that cannot be parsed ends the program with an
+% explanation; see interface:argv_handle_parse_error/1.
 
 :- dynamic interface:argv_/2.
-:- dynamic interface:opt_index_ready_/0.
-:- dynamic interface:opt_flag_/3.
-:- dynamic interface:opt_neg_flag_/2.
-:- dynamic interface:opt_defaults_/1.
 
 interface:argv(Options,Args) :-
   interface:argv_(Options,Args),!.
@@ -36,19 +35,78 @@ interface:argv(Options,Args) :-
 interface:argv(Options,Args) :-
   current_prolog_flag(argv, RawArgs),
   catch(
-    interface:parse_argv(RawArgs, Options, Args0),
+    interface:load_argv(RawArgs),
     E,
     interface:argv_handle_parse_error(E)
   ),
+  interface:argv_(Options,Args),
+  !.
+
+
+%! interface:load_argv(+RawArgs) is det.
+%
+% Parses the command-line words RawArgs and stores the result as the
+% command line that interface:argv/2 answers with, replacing what was
+% stored before. Throws the errors of interface:parse_argv/3 and stores
+% nothing in that case. The daemon calls this once per request with the
+% words its client sent.
+
+interface:load_argv(RawArgs) :-
+  interface:parse_argv(RawArgs, Options, Args0),
   interface:drop_end_of_options(Args0, Args),
+  retractall(interface:argv_(_,_)),
   assertz(interface:argv_(Options,Args)).
+
+
+%! interface:parse_argv(+RawArgs, -Options, -PosArgs) is det.
+%
+% Parses the list of command-line words RawArgs against interface:spec/1.
+% Options holds one opt(Value) term for every option in the spec: first
+% the options that were not given, with their default value and in spec
+% order, then the options that were given, in the order of the command
+% line. An option given more than once keeps its last value. PosArgs
+% holds the remaining words in their original order.
+%
+% The accepted forms are `--flag value`, `--flag=value`, `-f value` and
+% `-fvalue`. A boolean option needs no value: `--flag` means true and
+% `--no-flag` means false, and a following word `true` or `false` is
+% taken as its value. A lone `-` or `--` is a positional word. Any other
+% word that starts with a dash and is not an option of the spec is an
+% error, as is a missing value or a value of the wrong type. Errors are
+% thrown; interface:argv_error_text/3 describes them.
+%
+% This parser replaces library(optparse), which checked the whole spec
+% again on every call. In a daemon that is once per request, and it took
+% about 40 ms for a spec of this size. The differences in behaviour are
+% few. `-1` is now read as the short form of --oneshot (optparse took it
+% for a negative number and left it among the positional words), a whole
+% number is accepted where a float is expected (`--load-average 2`), a
+% short option written with two dashes (`--p`) is no longer accepted,
+% and an option that needs a value but is the last word is an error
+% instead of silently getting an empty value.
+
+interface:parse_argv(RawArgs, Options, PosArgs) :-
+  interface:ensure_opt_index,
+  interface:scan_argv(RawArgs, Overrides0, PosArgs),
+  interface:dedup_keeplast(Overrides0, Overrides),
+  interface:opt_defaults_(Defaults),
+  interface:merge_defaults(Defaults, Overrides, Options).
 
 
 %! interface:ensure_opt_index is det.
 %
-% Builds the first-argument-indexed flag lookup tables once from
-% interface:spec/1, avoiding optparse's repeated O(N^2) spec validation on
-% every request.
+% Builds the lookup tables of the parser from interface:spec/1 the first
+% time it is called, and does nothing after that. opt_flag_/3 maps each
+% flag as it is written on the command line (`-j`, `--jobs`) to the name
+% and type of its option, opt_neg_flag_/2 maps the `--no-` form of each
+% boolean option to its name, and opt_defaults_/1 holds the default value
+% of every option in spec order. The spec is static, so the tables are
+% never rebuilt.
+
+:- dynamic interface:opt_index_ready_/0.
+:- dynamic interface:opt_flag_/3.
+:- dynamic interface:opt_neg_flag_/2.
+:- dynamic interface:opt_defaults_/1.
 
 interface:ensure_opt_index :-
   interface:opt_index_ready_,
@@ -61,6 +119,9 @@ interface:ensure_opt_index :-
 
 
 %! interface:register_spec_entries(+Spec, -Defaults) is det.
+%
+% Stores the flags of every spec entry in the lookup tables and collects
+% the Name-Default pair of each entry in Defaults.
 
 interface:register_spec_entries([], []).
 interface:register_spec_entries([Entry|Rest], [Id-Def|More]) :-
@@ -83,20 +144,13 @@ interface:register_spec_entries([Entry|Rest], [Id-Def|More]) :-
   interface:register_spec_entries(Rest, More).
 
 
-%! interface:parse_argv(+RawArgs, -Options, -PosArgs) is det.
+%! interface:scan_argv(+Words, -Overrides, -PosArgs) is det.
 %
-% Parses RawArgs against the indexed interface:spec/1 table with keeplast
-% duplicate handling and non-overridden defaults prepended.
-
-interface:parse_argv(RawArgs, Options, PosArgs) :-
-  interface:ensure_opt_index,
-  interface:scan_argv(RawArgs, Overrides0, PosArgs),
-  interface:dedup_keeplast(Overrides0, Overrides),
-  interface:opt_defaults_(Defaults),
-  interface:merge_defaults(Defaults, Overrides, Options).
-
-
-%! interface:scan_argv(+Tokens, -Overrides, -PosArgs) is det.
+% Walks the command-line words from left to right. Overrides receives a
+% Name-Value pair for every option met, PosArgs every other word. The
+% clauses try, in this order: a `--no-` flag, a flag that is a word of
+% its own, `--flag=value`, a short flag with its value attached, an
+% unknown word that starts with a dash, and finally a positional word.
 
 interface:scan_argv([], [], []) :- !.
 interface:scan_argv([Tok|Rest], [Id-false|More], Pos) :-
@@ -117,7 +171,7 @@ interface:scan_argv([Tok|Rest], [Id-Val|More], Pos) :-
   AfterEq is EqPos + 1,
   sub_atom(Tok, AfterEq, _, 0, ValAtom),
   ( interface:opt_flag_(FlagAtom, Id, Type)
-  -> interface:parse_opt_value(Type, ValAtom, Val),
+  -> interface:parse_opt_value(Type, FlagAtom, ValAtom, Val),
      interface:scan_argv(Rest, More, Pos)
   ;  throw(error(existence_error(commandline_option, FlagAtom), _))
   ).
@@ -131,8 +185,9 @@ interface:scan_argv([Tok|Rest], [Id-Val|More], Pos) :-
   !,
   sub_atom(Tok, 2, _, 0, ValAtom),
   ( sub_atom(ValAtom, 0, 1, _, '=')
-  -> throw(error(syntax_error('disallowed: <shortflag>=<value>'), _))
-  ;  interface:parse_opt_value(Type, ValAtom, Val),
+  -> throw(error(syntax_error(commandline_option_value),
+                 commandline_option(Tok)))
+  ;  interface:parse_opt_value(Type, ShortFlag, ValAtom, Val),
      interface:scan_argv(Rest, More, Pos)
   ).
 interface:scan_argv([Tok|_], _, _) :-
@@ -146,41 +201,52 @@ interface:scan_argv([Tok|Rest], Overrides, [Tok|Pos]) :-
 
 
 %! interface:consume_flag_value(+Type, +Flag, +Rest, -Val, -RestOut) is det.
+%
+% Gives the value of a flag that was a word of its own. Rest holds the
+% words after the flag and RestOut the words left once the value is
+% taken. A boolean flag takes the next word only when that word is
+% `true` or `false`; otherwise it is true and takes nothing. A flag of
+% any other type takes the next word and it is an error if there is none.
 
 interface:consume_flag_value(boolean, _Flag, [Next|Rest], Bool, Rest) :-
   ( Next == true -> Bool = true ; Next == false -> Bool = false ),
   !.
 interface:consume_flag_value(boolean, _Flag, Rest, true, Rest) :- !.
-interface:consume_flag_value(Type, _Flag, [ValAtom|Rest], Val, Rest) :-
+interface:consume_flag_value(Type, Flag, [ValAtom|Rest], Val, Rest) :-
   !,
-  interface:parse_opt_value(Type, ValAtom, Val).
-interface:consume_flag_value(Type, Flag, [], _, _) :-
-  throw(error(type_error(flag_value, Flag:Type), _)).
+  interface:parse_opt_value(Type, Flag, ValAtom, Val).
+interface:consume_flag_value(_Type, Flag, [], _, _) :-
+  throw(error(existence_error(commandline_option_value, Flag),
+              commandline_option(Flag))).
 
 
-%! interface:parse_opt_value(+Type, +Atom, -Val) is det.
+%! interface:parse_opt_value(+Type, +Flag, +Atom, -Val) is det.
+%
+% Converts the word Atom into a value of the Type that Flag expects. A
+% whole number is accepted for a float. A word that does not fit throws
+% a type error that names the flag.
 
-interface:parse_opt_value(atom, Atom, Atom) :- !.
-interface:parse_opt_value(boolean, Atom, Atom) :-
+interface:parse_opt_value(atom, _Flag, Atom, Atom) :- !.
+interface:parse_opt_value(boolean, _Flag, Atom, Atom) :-
   ( Atom == true ; Atom == false ),
   !.
-interface:parse_opt_value(integer, Atom, Val) :-
+interface:parse_opt_value(integer, _Flag, Atom, Val) :-
+  catch(atom_number(Atom, Val), _, fail),
+  integer(Val),
+  !.
+interface:parse_opt_value(float, _Flag, Atom, Val) :-
+  catch(atom_number(Atom, N), _, fail),
+  number(N),
   !,
-  ( catch(atom_number(Atom, N), _, fail), integer(N)
-  -> Val = N
-  ;  throw(error(type_error(flag_value, integer), _))
-  ).
-interface:parse_opt_value(float, Atom, Val) :-
-  !,
-  ( catch(atom_number(Atom, N), _, fail), number(N)
-  -> Val is float(N)
-  ;  throw(error(type_error(flag_value, float), _))
-  ).
-interface:parse_opt_value(_Type, _Atom, _) :-
-  throw(error(type_error(flag_value, boolean), _)).
+  Val is float(N).
+interface:parse_opt_value(Type, Flag, Atom, _) :-
+  throw(error(type_error(Type, Atom), commandline_option(Flag))).
 
 
 %! interface:dedup_keeplast(+Pairs, -Unique) is det.
+%
+% Drops every Name-Value pair for which a later pair with the same name
+% exists, so an option given more than once keeps its last value.
 
 interface:dedup_keeplast([], []).
 interface:dedup_keeplast([Id-Val|Rest], Result) :-
@@ -192,6 +258,9 @@ interface:dedup_keeplast([Id-Val|Rest], Result) :-
 
 
 %! interface:merge_defaults(+Defaults, +Overrides, -Options) is det.
+%
+% Builds the final option list: the default of every option that was not
+% given, followed by the options that were given.
 
 interface:merge_defaults([], Overrides, Options) :-
   interface:pairs_to_opts(Overrides, Options).
@@ -205,6 +274,8 @@ interface:merge_defaults([Id-Def|Rest], Overrides, Options) :-
 
 
 %! interface:pairs_to_opts(+Pairs, -Options) is det.
+%
+% Turns each Name-Value pair into the term Name(Value).
 
 interface:pairs_to_opts([], []).
 interface:pairs_to_opts([Id-Val|Rest], [Opt|More]) :-
@@ -223,23 +294,69 @@ interface:drop_end_of_options(Args, Args).
 
 %! interface:argv_handle_parse_error(+Exception) is det.
 %
-% Handles optparse exceptions. For unknown options, prints a clear message
-% and halts. Other exceptions are rethrown.
+% Called when the command line of this process cannot be parsed. Explains
+% the mistake on standard error and halts with the status given by
+% interface:argv_error_text/3. Any other exception is passed on
+% unchanged.
+%
+% The daemon does not come here for the command line of a request. A
+% halt would stop the daemon itself, because SWI-Prolog does not let a
+% halt be cancelled by catching it. The daemon calls interface:load_argv/1
+% and writes the same explanation and status to its client instead; see
+% daemon:handle_error/3.
 
 interface:argv_handle_parse_error(E) :-
-  E = error(ExType, _),
-  ExType = existence_error(commandline_option, Flag),
+  interface:argv_error_text(E, Status, Lines),
   !,
-  format(user_error, 'Error: Unknown option ~w.~n', [Flag]),
-  ( interface:suggest_similar_flag(Flag, Suggestion) ->
-      format(user_error, 'Did you mean: ~w?~n', [Suggestion])
-  ; true
-  ),
-  format(user_error, 'Use --help for available options.~n', []),
-  halt(1).
+  forall(member(Line, Lines),
+         format(user_error, '~w~n', [Line])),
+  halt(Status).
 
 interface:argv_handle_parse_error(E) :-
   throw(E).
+
+
+%! interface:argv_error_text(+Exception, -Status, -Lines) is semidet.
+%
+% True when Exception is one of the errors interface:parse_argv/3 throws.
+% Lines is the explanation for the user and Status the exit status that
+% goes with it: 1 for an option that does not exist, 2 for a value that
+% is missing or of the wrong type. These are the statuses the program
+% returned for the same mistakes when it still used library(optparse).
+
+interface:argv_error_text(error(existence_error(commandline_option, Flag), _),
+                          1, Lines) :-
+  !,
+  format(atom(Line), 'Error: Unknown option ~w.', [Flag]),
+  ( interface:suggest_similar_flag(Flag, Suggestion)
+  -> format(atom(Hint), 'Did you mean: ~w?', [Suggestion]),
+     Lines = [Line, Hint, 'Use --help for available options.']
+  ;  Lines = [Line, 'Use --help for available options.']
+  ).
+interface:argv_error_text(error(existence_error(commandline_option_value, Flag), _),
+                          2, [Line, 'Use --help for available options.']) :-
+  !,
+  format(atom(Line), 'Error: Option ~w needs a value.', [Flag]).
+interface:argv_error_text(error(type_error(Type, Value), commandline_option(Flag)),
+                          2, [Line, 'Use --help for available options.']) :-
+  !,
+  interface:opt_type_text(Type, Expected),
+  format(atom(Line), 'Error: Option ~w expects ~w, got \'~w\'.',
+         [Flag, Expected, Value]).
+interface:argv_error_text(error(syntax_error(commandline_option_value),
+                                commandline_option(Word)),
+                          2, [Line, 'Write the value of a short option without \'=\', as in -j4 or -j 4.']) :-
+  format(atom(Line), 'Error: Cannot read option ~w.', [Word]).
+
+
+%! interface:opt_type_text(+Type, -Text) is det.
+%
+% Describes an option type in words for an error message.
+
+interface:opt_type_text(integer, 'a whole number') :- !.
+interface:opt_type_text(float,   'a number') :- !.
+interface:opt_type_text(boolean, 'true or false') :- !.
+interface:opt_type_text(Type,    Type).
 
 
 % -----------------------------------------------------------------------------

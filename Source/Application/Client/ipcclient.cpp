@@ -14,10 +14,20 @@ Native Unix-domain IPC client for a portage-ng daemon.
 Functional parity with `Source/Application/Client/ipclient.pl`: request
 streaming, env forward, `--status`, `--cmd halt|relaunch`, `--shell` reject,
 and autostart via `portage-ng-dev --mode daemon --background`. This binary is
-the `ng-ipc-cpp` client used by `pm-bench`. It loads neither SWI-Prolog, the
-knowledge base, nor the C++ standard I/O / string runtime; only `libSystem` /
-`libc` is mapped at process startup, with zero heap allocations on the hot
-request path.
+the `ng-ipc-cpp` client used by `pm-bench`. It does not load SWI-Prolog or the
+knowledge base; the daemon holds the KB.
+
+This file is a standalone entry point. The Prolog counterpart is the
+canonical protocol description; this client reimplements the same wire
+format in C++ so process boot stays off the SWI runtime.
+
+The program is written to start quickly, because for a small request
+starting the client takes longer than the daemon takes to answer. It does
+not use the C++ stream and string classes and is built without exceptions
+and run-time type information, so the system C library is the only library
+it needs when it starts. The request and the answer are kept in buffers on
+the stack. Memory is allocated only for a request longer than 4 KB, or for
+an answer that contains NUL bytes of its own.
 
 Wire protocol (same as `ipc.pl` / `ipclient.pl`):
 
@@ -63,8 +73,8 @@ constexpr char kSentinel[] = "EXIT:";
 constexpr size_t kSentinelLen = sizeof(kSentinel) - 1;
 constexpr size_t kStreamBufSize = 65536;
 
-// Same names as ipclient:forwarded_env_var/1. Only vars present in the
-// client environment are encoded into the request term.
+// The same names as ipclient:forwarded_env_vars/1. Only the variables that are
+// set in the environment of the client are put in the request.
 constexpr const char* kForwardedEnv[] = {
     "USE",
     "ACCEPT_KEYWORDS",
@@ -85,8 +95,13 @@ constexpr const char* kForwardedEnv[] = {
 
 
 // -----------------------------------------------------------------------------
-//  Stack-first byte buffer (zero heap allocations on the hot path)
+//  Byte buffer that starts on the stack
 // -----------------------------------------------------------------------------
+
+// A byte buffer that grows as needed. Its first 4 KB are part of the object
+// itself, so a buffer declared in a function uses the stack and no memory is
+// allocated until more than 4 KB is stored. When memory cannot be allocated
+// the program exits with status 1.
 
 class SmallBuf {
 public:
@@ -156,22 +171,32 @@ public:
     append(tmp + i, sizeof(tmp) - i);
   }
 
-  // Always-quoted Prolog atom (`~q`-compatible; always valid for `read_term`).
-  // Fast-paths strings without embedded single quotes via a single memcpy.
+  // Appends s as a quoted Prolog atom, so that read_term/2 in the daemon gives
+  // back exactly s. The text goes between single quotes. A single quote, a
+  // backslash, a line feed and a carriage return are written as the escapes
+  // \' \\ \n and \r, because inside a quoted atom a backslash starts an escape
+  // and a line break is not allowed. Everything else is copied as it is, one
+  // stretch at a time.
   void append_quoted_atom(const char* s) {
     push('\'');
-    const char* cur = s;
-    for (;;) {
-      const char* q = std::strchr(cur, '\'');
-      if (!q) {
-        append_cstr(cur);
-        break;
+    const char* run = s;
+    for (const char* c = s;; ++c) {
+      const char* escape = nullptr;
+      switch (*c) {
+        case '\0':
+          append(run, static_cast<size_t>(c - run));
+          push('\'');
+          return;
+        case '\'': escape = "\\'"; break;
+        case '\\': escape = "\\\\"; break;
+        case '\n': escape = "\\n"; break;
+        case '\r': escape = "\\r"; break;
+        default: continue;
       }
-      append(cur, static_cast<size_t>(q - cur));
-      append("''", 2);
-      cur = q + 1;
+      append(run, static_cast<size_t>(c - run));
+      append(escape, 2);
+      run = c + 1;
     }
-    push('\'');
   }
 
 private:
@@ -360,8 +385,11 @@ void print_no_daemon_error(const Paths& p) {
 
 //! ipcclient:tty_info(-Cols, -Rows, -IsTty)
 //
-// Single TIOCGWINSZ ioctl determines both terminal dimensions and TTY status
-// (80 rows, 160 cols default when stdout is not a terminal).
+// Asks the terminal on standard output for its size. That one call answers
+// two questions. When it succeeds, standard output is a terminal and its size
+// is known. When it fails because standard output is not a terminal, the size
+// is 80 rows by 160 columns, the defaults ipclient.pl uses. For any other
+// failure isatty() decides whether it is a terminal.
 
 void tty_info(int& cols, int& rows, bool& is_tty) {
   cols = 160;
@@ -383,8 +411,9 @@ void tty_info(int& cols, int& rows, bool& is_tty) {
 
 //! ipcclient:build_request(+Argc, +Argv, -Req)
 //
-// Encodes `request(Args, Cols, Rows, Env).\n` directly into Req with zero
-// intermediate allocations.
+// Writes the request term `request(Args, Cols, Rows, Env).` and a line feed
+// into Req. Every argument and every environment value is written as a quoted
+// atom.
 
 void build_request(int argc, char** argv, SmallBuf& req) {
   int cols = 160, rows = 80;
@@ -457,7 +486,7 @@ bool write_request(int fd, const SmallBuf& req) {
 
 
 // -----------------------------------------------------------------------------
-//  Stream response (NUL EXIT:<code> sentinel, zero-copy fast path)
+//  Copy the answer (it ends with a NUL and the line EXIT:<code>)
 // -----------------------------------------------------------------------------
 
 ssize_t read_retry(int fd, char* buf, size_t cap) {
@@ -525,8 +554,14 @@ bool is_partial_sentinel(const char* p, size_t len) {
 }
 
 
-// Handles the cold boundary path when a NUL lands within 5 bytes of the end of
-// a 64 KB read or is followed by non-sentinel payload bytes.
+// Decides what a NUL means when the bytes already read do not settle it.
+// `tail` holds the bytes that followed the NUL. More is read from the daemon
+// for as long as `tail` could still be the beginning of `EXIT:`.
+//
+// Returns true when the answer is finished, with exit_code set: either the
+// closing line was found or the connection ended. Returns false when the NUL
+// was ordinary output. The NUL has then been written, and `tail` holds the
+// bytes after it, which the caller still has to scan.
 bool match_sentinel_slow(int fd, SmallBuf& tail, int& exit_code) {
   char tmp[4096];
   for (;;) {
@@ -558,29 +593,35 @@ bool match_sentinel_slow(int fd, SmallBuf& tail, int& exit_code) {
 }
 
 
+//! ipcclient:stream_response(+Fd)
+//
+// Copies the answer of the daemon from Fd to standard output and returns the
+// exit code on its closing line. Returns 1 when the connection ends before
+// that line.
+//
+// The answer is read 64 KB at a time and each block is searched for a NUL.
+// A block without one, which is nearly every block, is written out in a
+// single call. When the closing line is complete in the block that holds its
+// NUL, which is the usual case, the exit code is read straight from the block.
+
 int stream_response(int fd) {
   char buf[kStreamBufSize];
   SmallBuf carry;
+  SmallBuf work;
 
   for (;;) {
     const char* p = nullptr;
     size_t len = 0;
 
     if (!carry.empty()) {
-      // Drain leftover bytes after an embedded non-sentinel NUL.
-      const size_t chunk =
-          carry.size() <= sizeof(buf) ? carry.size() : sizeof(buf);
-      std::memcpy(buf, carry.data(), chunk);
-      if (chunk < carry.size()) {
-        SmallBuf rest;
-        rest.append(carry.data() + chunk, carry.size() - chunk);
-        carry.clear();
-        carry.append(rest.data(), rest.size());
-      } else {
-        carry.clear();
-      }
-      p = buf;
-      len = chunk;
+      // Bytes that followed a NUL which turned out to be ordinary output
+      // still have to be scanned. They are moved to `work` so that `carry`
+      // is free to receive what follows the next such NUL.
+      work.clear();
+      work.append(carry.data(), carry.size());
+      carry.clear();
+      p = work.data();
+      len = work.size();
     } else {
       ssize_t n = read_retry(fd, buf, sizeof(buf));
       if (n < 0) {
@@ -613,7 +654,7 @@ int stream_response(int fd) {
       const char* after = nul + 1;
       const size_t rem = len - before - 1;
 
-      // Hot fast-path: complete `EXIT:<code>\n` already present in `buf`.
+      // The usual case: the whole closing line is in this block.
       if (rem >= kSentinelLen + 2 &&
           std::memcmp(after, kSentinel, kSentinelLen) == 0) {
         const char* digits = after + kSentinelLen;
@@ -631,10 +672,9 @@ int stream_response(int fd) {
       if (match_sentinel_slow(fd, tail, exit_code))
         return exit_code;
 
-      // Embedded NUL was payload; prepend any carry and continue scanning.
-      if (!carry.empty())
-        tail.append(carry.data(), carry.size());
-      carry.clear();
+      // The NUL was ordinary output and has been written. What followed it
+      // goes round the outer loop once more. `carry` is empty at this
+      // point, because it is emptied before anything is scanned.
       carry.append(tail.data(), tail.size());
       break;
     }
@@ -646,12 +686,22 @@ int stream_response(int fd) {
 //  Status / commands / autostart
 // -----------------------------------------------------------------------------
 
-void wait_for_file(const char* path, int retries) {
+//! ipcclient:wait_for_daemon(+Paths, +Retries)
+//
+// Returns true as soon as a daemon accepts a connection on the socket. Tries
+// Retries times, 10 ms apart, and returns false when no daemon has answered by
+// then. The test is a connection and not the presence of the socket file: a
+// daemon that was killed leaves its socket file behind, and a file that nobody
+// listens on must not be taken for a daemon that is ready.
+
+bool wait_for_daemon(const Paths& p, int retries) {
   for (int i = 0; i < retries; ++i) {
-    if (file_exists(path))
-      return;
-    ::usleep(10000);
+    if (socket_connectable(p))
+      return true;
+    if (i + 1 < retries)
+      ::usleep(10000);
   }
+  return false;
 }
 
 
@@ -755,8 +805,7 @@ int start_daemon_background(const char* argv0, const Paths& p) {
     write_all_fd(STDERR_FILENO, err.data(), err.size());
     return 1;
   }
-  wait_for_file(p.sock, 6000);
-  if (socket_connectable(p)) {
+  if (wait_for_daemon(p, 6000)) {
     write_out_cstr("Daemon ready.\n");
     return 0;
   }
@@ -862,8 +911,12 @@ void usage(const char* argv0, const Paths& p) {
 
 
 // -----------------------------------------------------------------------------
-//  Single-pass CLI scan
+//  Flags the client handles itself
 // -----------------------------------------------------------------------------
+
+// Looks through the arguments once for the flags the client acts on itself.
+// The other arguments are not interpreted here. They are sent to the daemon
+// as they are.
 
 struct CliFlags {
   bool shell = false;
@@ -906,9 +959,10 @@ CliFlags scan_cli(int argc, char** argv) {
 
 //! ipcclient:main(+Argc, +Argv)
 //
-// Dispatches `--status` / `--cmd` / `--shell`, otherwise connects in a single
-// syscall on the hot path (autostarting the daemon only when connect fails)
-// and streams one request.
+// Handles --status, --cmd, --shell and --help itself. Anything else is sent
+// to the daemon as one request. The connection is simply tried, without
+// looking at the socket file first. Only when nobody answers, and autostart
+// is enabled, is a daemon started and the connection tried a second time.
 
 int main(int argc, char** argv) {
   Paths paths{};

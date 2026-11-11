@@ -149,7 +149,8 @@ interface:process_flags :-
 %! interface:process_repeated_flags is det.
 %
 % Scans the raw argv for repeated value-taking flags and asserts
-% each value. This bypasses optparse's keeplast behaviour, allowing
+% each value. The command-line parser keeps only the last value of a flag
+% that is given more than once; reading the raw argv here allows
 % e.g. --skip pkg1 --skip pkg2 without shell quoting.
 
 interface:process_repeated_flags :-

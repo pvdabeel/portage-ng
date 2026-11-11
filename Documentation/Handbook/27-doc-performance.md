@@ -213,13 +213,17 @@ an identical Portage tree, VDB, and `/etc/portage` for every engine.
 | emerge | `emerge -vp <pkg>` |
 | pmerge | `pmerge -vp <pkg>` (pkgcore) |
 | cave | `cave resolve --lazy <pkg>` (Paludis) |
-| ng-ipc | `portage-ng-dev --mode ipc --pretend <pkg>` (ultralight SWI `ipclient.pl`) |
-| ng-ipc-cpp | `ipcclient --mode ipc --pretend <pkg>` (native C++ client) |
+| ng-ipc | `portage-ng-dev --mode ipc --pretend <pkg>` (SWI-Prolog client: loads only `ipclient.pl`, not the application) |
+| ng-ipc-cpp | `ipcclient --mode ipc --pretend <pkg>` (native C++ client, no SWI-Prolog) |
 
 portage-ng IPC uses a **warm daemon** (knowledge base already loaded);
 the timed sample is client connect + prove + print.  Standalone
 portage-ng (full process boot + `kb.qlf` load each time) is much slower
 and is not included in this table.
+
+The two IPC rows differ only in the client program.  Both send the same
+request to the same daemon and print the same plan (see
+[Chapter 15](15-doc-cli.md), "IPC").
 
 
 ### Packages where emerge produced a plan
@@ -241,6 +245,13 @@ the median (same daemon; the gap is client process boot).  Both IPC
 tools finished every package in this set with exit code 0.  Cave’s
 average/total are inflated by hard timeouts (120 s cap in this run).
 
+These tables were measured before the IPC clients and the daemon request
+path were reworked (November 2026) and have not been measured again on
+`vm-linux.local` since.  A later run of the two IPC tools on a different
+machine is reported under "IPC clients on Apple Silicon" below; because
+the machines differ, the two sets of numbers cannot be compared with
+each other.
+
 
 ### All packages in the manifest
 
@@ -254,6 +265,27 @@ those where emerge exited non-zero):
 | pmerge | 247 ms | 286 ms | 1.55 hours | 5.0× |
 | ng-ipc | 85 ms | 161 ms | 52.0 minutes | **14.6×** |
 | ng-ipc-cpp | 58 ms | 133 ms | 43.2 minutes | **21.4×** |
+
+
+### IPC clients on Apple Silicon
+
+Both IPC tools were run once over the whole tree (19,461 packages, one
+sample per package) on `macbook-pro.local` (arm64 macOS) against one
+warm daemon, at commit `fa2cfbbe`.  Every request ended with exit code
+0.  No other package manager was measured on this machine.
+
+| **Tool** | **Median** | **Average** | **Total** |
+| :--- | ---: | ---: | ---: |
+| ng-ipc | 55 ms | 111 ms | 36.0 minutes |
+| ng-ipc-cpp | 22 ms | 77 ms | 24.9 minutes |
+
+The gap between the two is the time the client program needs to start:
+the SWI-Prolog client has to start `swipl` and load two libraries, the
+native client only the system C library.  The time the daemon spends
+proving and printing is the same for both, so the gap is about 30 ms
+whatever the size of the package.  For the median package that is more
+than half of the total time; for a package that takes seconds to prove
+it does not matter.
 
 
 ### Why portage-ng IPC is faster

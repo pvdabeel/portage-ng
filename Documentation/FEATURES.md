@@ -340,7 +340,8 @@ connect + prove + print.
 
 
 Subset: **16,313** packages where `emerge -vp` exited 0.  `ng-ipc` is the
-ultralight SWI `ipclient.pl`; `ng-ipc-cpp` is the native Unix-socket client.
+SWI-Prolog client (it loads only `ipclient.pl`); `ng-ipc-cpp` is the native
+client, which needs no SWI-Prolog.
 Full tables and methodology: [Handbook ch. 27](Handbook/27-doc-performance.md).
 
 ### Why portage-ng is faster

@@ -9,8 +9,9 @@
 
 
 /** <module> SPEC
-The optparse command-line flag specification (included into the INTERFACE
-module via interface.pl).
+The list of command-line flags (included into the INTERFACE module via
+interface.pl). The list is written in the format of library(optparse), but
+it is read by the parser in Interface/argv.pl, not by that library.
 */
 
 % -----------------------------------------------------------------------------
@@ -19,8 +20,8 @@ module via interface.pl).
 
 %! interface:spec(-Specification) is det.
 %
-% Unifies Specification with the optparse specification list that declares
-% all supported command-line flags, their types, defaults, and help texts.
+% Unifies Specification with the list that declares all supported
+% command-line flags, their types, defaults, and help texts.
 
 interface:spec(S) :-
   config:hostname(Hostname),
