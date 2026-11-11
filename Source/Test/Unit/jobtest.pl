@@ -183,8 +183,13 @@ test(cluster_worker_client_jobs_routes_full_coverage) :-
         server:reset_progress,
         wrap_predicate(server:get_result(RId, RTgt, RRes, _), test_cov, _,
                        (RId = 1, RTgt = t1, RRes = ok)),
+        % prove_all submits every portage entry. With a knowledge base loaded
+        % that is the whole tree, while the stub above only ever answers for
+        % job 1: bound the wait, or it runs to the one-hour default deadline.
+        wrap_predicate(config:cluster_global_deadline(ProveDL), test_cov, _, ProveDL = 1),
         cluster:prove_all(run, _),
         cluster:prove_targets([t1], _),
+        unwrap_predicate(config:cluster_global_deadline/1, test_cov),
         unwrap_predicate(server:get_result/4, test_cov),
         server:reset_progress,
         cluster:submit([t_a, t_b]),
