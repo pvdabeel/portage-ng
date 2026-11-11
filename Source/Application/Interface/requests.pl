@@ -216,7 +216,8 @@ interface:ensure_for_request(_, _).
 % Main dispatch. Processes the parsed command-line options and maps each
 % recognised flag (--sync, --graph, --merge, etc.) onto the corresponding
 % action predicate via the request_handler/5 table. Falls through to the
-% catch-all clause (halt(1)) if no handler matches or the action fails.
+% catch-all clause if no handler matches or the action fails; that clause
+% ends the request with exit status 1 (interface:exit/1).
 % ipc is a no-op: main(ipc) already connects and halt/1s. server, daemon
 % and worker drop into the Prolog toplevel.
 
@@ -242,7 +243,28 @@ interface:process_requests(Mode) :-
 
   Continue.
 interface:process_requests(_) :-
+  interface:exit(1).
+
+
+%! interface:exit(+Status) is det.
+%
+% Ends the request that is being processed with exit status Status.
+%
+% A program that was started for one command line halts. The daemon must
+% not: a halt cannot be stopped by catch/3 in SWI-Prolog (the recovery
+% goal runs and the halt then continues), so a halt inside a request would
+% end the daemon and every later request would have to start a new one.
+% In the daemon the request is ended by throwing request_exit(Status)
+% instead. daemon:handle_error/3 receives it and sends Status to the
+% client as the exit status of the request.
+%
+% Every place that a request of the daemon can reach has to end through
+% this predicate and not through halt/1. A catch/3 between such a place
+% and the daemon that catches everything has to pass request_exit(_) on;
+% see action:handle_build_exception/2.
+
+interface:exit(Status) :-
   ( catch(daemon:running, _, fail)
-  -> true
-  ;  halt(1)
+  -> throw(request_exit(Status))
+  ;  halt(Status)
   ).

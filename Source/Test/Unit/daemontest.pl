@@ -205,6 +205,18 @@ test(daemon_ipc_ipclient_full_coverage) :-
                 once(sub_string(ValueReply, _, _, _,
                                 "Error: Option --jobs expects a whole number, got 'x'.")),
                 once(sub_string(ValueReply, _, _, 0, "\000\EXIT:2\n")),
+                % A request that ends itself with an exit status reaches
+                % the client with that status: 3 for --ci without a
+                % target, 1 for a request that fails.
+                daemontest:dispatch_reply(
+                  request(['--ci', '--pretend'], 80, 24, []), CiReply),
+                once(sub_string(CiReply, _, _, 0, "\000\EXIT:3\n")),
+                daemontest:dispatch_reply(
+                  request(['--pretend'], 80, 24, []), FailReply),
+                once(sub_string(FailReply, _, _, 0, "\000\EXIT:1\n")),
+                EC0 = exit_code(0),
+                daemon:handle_error(NullOut, request_exit(5), EC0),
+                EC0 == exit_code(5),
                 catch(daemon:dispatch(shutdown, NullOut, NullOut), daemon_halt(0), true),
                 wrap_predicate(interface:process_requests(_), test_cov, _, throw(boom_req)),
                 daemon:dispatch(request(['--version'], 0, 0, []), NullOut, NullOut),

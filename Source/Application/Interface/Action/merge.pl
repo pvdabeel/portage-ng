@@ -82,7 +82,7 @@ action:bind_proposal_target(_Action, Q) :-
 action:handle_empty_proposal(ArgsSets, Args, Options) :-
   ( action:empty_computed_set_message(ArgsSets, EmptyMsg) ->
       ignore(message:inform(EmptyMsg)),
-      ( memberchk(ci(true), Options) -> halt(0) ; true )
+      ( memberchk(ci(true), Options) -> interface:exit(0) ; true )
   ; ignore(( config:llm_support(Prompt),
              atomic_list_concat([Prompt|Args], Message),
              config:llm_default(Service),
@@ -177,12 +177,12 @@ action:maybe_run_explain(Options, PretendMode, Proposal, ProofAVL, ModelAVL, Pla
 
 %! action:maybe_ci_halt(+Options, +ModelAVL, +ProofAVL) is det.
 %
-% In `--ci` mode, halt with the assumption-derived exit code.
+% In `--ci` mode, end the request with the assumption-derived exit code.
 
 action:maybe_ci_halt(Options, ModelAVL, ProofAVL) :-
   ( memberchk(ci(true), Options) ->
       interface:ci_exit_code(ModelAVL, ProofAVL, ExitCode),
-      halt(ExitCode)
+      interface:exit(ExitCode)
   ; true
   ).
 
@@ -203,7 +203,8 @@ action:maybe_execute_world(_, _, _).
 
 %! action:halt_with_error(+Message) is det.
 %
-% Prints a red error bubble, dumps the choice log, and halt(1).
+% Prints a red error bubble, dumps the choice log, and ends the request
+% with exit status 1.
 
 action:halt_with_error(Message) :-
   message:bubble(red,'Error'),
@@ -212,7 +213,7 @@ action:halt_with_error(Message) :-
   message:color(normal),
   flush_output,
   choicelog:maybe_dump,
-  halt(1).
+  interface:exit(1).
 
 
 % -----------------------------------------------------------------------------

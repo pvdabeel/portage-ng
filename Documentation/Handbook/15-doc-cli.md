@@ -103,6 +103,16 @@ reports that no daemon is running and exits with code 1.
 gets the same message and the same exit code as in standalone mode.
 The daemon keeps running and serves the next request.
 
+**Exit codes.**  The client exits with the code a standalone run of the
+same command line gives: 0, 1 or 2 for a `--ci --pretend` plan (see
+"CI mode" below), 3 for `--ci` without a usable target, 1 for a
+request that fails.  The daemon keeps running in each of these cases.
+
+**One request does not affect the next.**  Options such as `--color n`,
+`--verbose`, `--jobs`, `--style` or `--exclude` apply to the request
+they are given with.  The next request starts from the settings the
+daemon was started with.
+
 **Managing the daemon.**  `--status` tells whether a daemon is running.
 `--cmd halt` stops it and `--cmd relaunch` restarts it, which is needed
 after changing portage-ng source files, because the daemon keeps the

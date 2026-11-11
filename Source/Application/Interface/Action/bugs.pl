@@ -49,7 +49,7 @@ action:process_bugs(ArgsSets, Options) :-
   ; pipeline:prove_with_fallback(Proposal,ProofAVL,_ModelAVL,_Triggers),
     warning:print_proof_bugreport_drafts(ProofAVL),
     ( memberchk(ci(true), Options) ->
-        halt(0)
+        interface:exit(0)
     ; true
     )
   ).

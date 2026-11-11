@@ -111,7 +111,7 @@ action:process_unmerge(ArgsSets, Options) :-
 %! action:run_build_with_ci_guard(+Proposal, +Options) is det.
 %
 % Runs `builder:build/1` with an exception guard. In `--ci` mode any
-% uncaught exception is converted to `halt(3)` so the silent-failure
+% uncaught exception is converted to exit status 3 so the silent-failure
 % class of bug -- "pipeline exited 0 but the build clearly didn't
 % finish" -- cannot escape via the uncaught-exception path either.
 % Outside `--ci` the exception is re-raised so interactive users still
@@ -123,23 +123,23 @@ action:run_build_with_ci_guard(Proposal, Options) :-
 
 %! action:handle_build_exception(+Err, +Options) is det.
 %
-% In `--ci` mode: log the exception to stderr and `halt(3)` so the
-% pipeline exit code matches the "execution failed" semantics
-% documented on `maybe_ci_exit_on_build_failure/1`. Outside `--ci`:
-% rethrow so the interactive caller's debugger / top-level handler
-% sees it unchanged. `halt/1` exceptions (`unwind(halt(_))`) are
-% always rethrown so explicit halts inside builder:build/1 keep their
-% exit code.
+% In `--ci` mode: log the exception to stderr and end the request with
+% exit status 3 so the pipeline exit code matches the "execution failed"
+% semantics documented on `maybe_ci_exit_on_build_failure/1`. Outside
+% `--ci`: rethrow so the interactive caller's debugger / top-level handler
+% sees it unchanged. `halt/1` exceptions (`unwind(halt(_))`) and the
+% request_exit(_) of interface:exit/1 are always rethrown so that an
+% explicit exit inside builder:build/1 keeps its exit code.
 
 action:handle_build_exception(Err, _Options) :-
-  ( Err = unwind(halt(_)) ; Err = halt(_) ),
+  ( Err = unwind(halt(_)) ; Err = halt(_) ; Err = request_exit(_) ),
   !,
   throw(Err).
 
 action:handle_build_exception(Err, Options) :-
   format(user_error, '[builder] exception during build: ~q~n', [Err]),
   ( memberchk(ci(true), Options)
-  -> halt(3)
+  -> interface:exit(3)
   ;  throw(Err)
   ).
 
@@ -163,13 +163,13 @@ action:handle_build_exception(Err, Options) :-
 %   - 2 : domain assumptions
 %   - 3 : at least one action failed during execution
 %
-% Only halts when both `--ci` is set AND `Failed > 0`.
+% Only ends the request when both `--ci` is set AND `Failed > 0`.
 
 action:maybe_ci_exit_on_build_failure(Options) :-
   ( memberchk(ci(true), Options),
     builder:last_build_status(_Completed, Failed, _Stubs),
     Failed > 0
-  -> halt(3)
+  -> interface:exit(3)
   ;  true
   ).
 
@@ -178,7 +178,7 @@ action:maybe_ci_exit_on_build_failure(Options) :-
 %
 % Surface "no valid targets resolved" as a hard failure exit code in CI
 % mode. Without this, an unresolvable target falls back through predicate
-% failure to the catch-all halt(1) in interface:process_requests/1, which
+% failure to the catch-all exit status 1 in interface:process_requests/1, which
 % downstream comparison tooling that triages by exit code misinterprets
 % as "OK(cycles)" (exit 1 normally means "build succeeded with prover
 % cycle-break assumptions"). Outside --ci the predicate fails so the
@@ -186,6 +186,6 @@ action:maybe_ci_exit_on_build_failure(Options) :-
 
 action:exit_on_invalid_targets(Options) :-
   ( memberchk(ci(true), Options)
-  -> halt(3)
+  -> interface:exit(3)
   ;  fail
   ).

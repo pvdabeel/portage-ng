@@ -584,12 +584,25 @@ daemon:refresh_binpkg_index :-
 %! daemon:handle_error(+Out, +Error, +ExitCodeTerm) is det.
 %
 % Interprets exceptions thrown during request processing.
-% halt/1 throws unwind(halt(Code)) in SWI-Prolog.
+%
+% request_exit(Code) is how a request ends itself with an exit status
+% (interface:exit/1): after a --ci run, after a proof that failed, when no
+% target could be resolved. Code goes to the client and the daemon carries
+% on with the next connection.
 %
 % A command line that cannot be parsed is answered with the explanation
 % and the exit status a standalone run gives for the same mistake
 % (interface:argv_error_text/3). Nothing halts, so the daemon keeps
 % running.
+%
+% A real halt/1 arrives here as unwind(halt(Code)). The exit status is
+% recorded, but SWI-Prolog continues the halt after this handler has run,
+% so the daemon ends. That is why code a request can reach must use
+% interface:exit/1.
+
+daemon:handle_error(_Out, request_exit(Code), ExitCodeTerm) :-
+  integer(Code), !,
+  nb_setarg(1, ExitCodeTerm, Code).
 
 daemon:handle_error(_Out, Error, ExitCodeTerm) :-
   ( Error = unwind(halt(Code)) ; Error = halt(Code) ),

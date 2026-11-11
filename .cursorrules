@@ -612,11 +612,18 @@ The canonical load graph for standalone is in `portage-ng.pl`:
   file behind.
 - A `halt/1` inside a request cannot be caught. In SWI-Prolog 10.1.20
   `catch/3` runs its recovery goal for `unwind(halt(_))` and the halt
-  then continues, so the daemon ends. Argument errors are therefore
-  answered without a halt: `daemon:isolate_state/4` calls
-  `interface:load_argv/1`, which throws, and `daemon:handle_error/3`
-  prints the text of `interface:argv_error_text/3`. Do not add a
-  `halt/1` to a code path a daemon request can reach.
+  then continues, so the daemon ends. A request therefore ends through
+  `interface:exit/1` (`Source/Application/Interface/requests.pl`): it
+  halts in a one-shot process and throws `request_exit(Status)` in the
+  daemon, where `daemon:handle_error/3` sends Status to the client
+  (`--ci` exit codes, a failed proof, no valid target, a request that
+  fails). Argument errors are answered the same way without a halt:
+  `daemon:isolate_state/4` calls `interface:load_argv/1`, which throws,
+  and `daemon:handle_error/3` prints the text of
+  `interface:argv_error_text/3`. Do not add a `halt/1` to a code path a
+  daemon request can reach (unit `interface_request_exit` checks the
+  `action` module), and let a catch-all `catch/3` on such a path pass
+  `request_exit(_)` on, as `action:handle_build_exception/2` does.
 - `daemon:apply_client_env/1` rebuilds the preferences only when
   `daemon:current_pref_sig/2` changes (forwarded environment + the
   preference cache stamp) and only while the preference cache is

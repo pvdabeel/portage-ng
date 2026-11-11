@@ -335,6 +335,72 @@ test(every_fact_written_by_flag_processing_is_listed) :-
 :- end_tests(interface_flag_state).
 
 
+% -----------------------------------------------------------------------------
+%  Ending a request
+% -----------------------------------------------------------------------------
+
+:- begin_tests(interface_request_exit).
+
+% Inside the daemon a request ends by an exception that carries the exit
+% status. A halt would end the daemon.
+test(exit_inside_daemon_throws_the_status,
+     [ setup(assertz(daemon:running)),
+       cleanup(retractall(daemon:running)) ]) :-
+  catch(( interface:exit(7), Ended = no ),
+        request_exit(Status),
+        Ended = yes(Status)),
+  Ended == yes(7).
+
+% The actions run inside the daemon as well, so none of them may call
+% halt/1 itself. They end a request through interface:exit/1.
+test(actions_do_not_halt) :-
+  findall(Name/Arity,
+          ( predicate_property(action:Head, defined),
+            \+ predicate_property(action:Head, imported_from(_)),
+            \+ predicate_property(action:Head, foreign),
+            catch(clause(action:Head, Body), _, fail),
+            interfacetest:called_goal(Body, Goal),
+            ( Goal == halt ; Goal = halt(_) ),
+            functor(Head, Name, Arity)
+          ),
+          Halting),
+  Halting == [].
+
+:- end_tests(interface_request_exit).
+
+
+%! interfacetest:called_goal(+Body, -Goal)
+%
+% Goal is a goal that the clause body Body calls: Body itself, or a goal
+% in an argument that a control construct or meta-predicate (`,`, `;`,
+% `->`, `\+`, catch/3, forall/2, findall/3, ...) calls. A term that is
+% only compared with, such as the halt(_) in `Err = halt(_)`, is not a
+% goal.
+
+interfacetest:called_goal(Goal, _) :-
+  var(Goal), !,
+  fail.
+interfacetest:called_goal(_:Goal, Called) :-
+  !,
+  interfacetest:called_goal(Goal, Called).
+interfacetest:called_goal(_^Goal, Called) :-
+  !,
+  interfacetest:called_goal(Goal, Called).
+interfacetest:called_goal(Goal, Called) :-
+  callable(Goal),
+  predicate_property(action:Goal, meta_predicate(Spec)),
+  !,
+  Goal =.. [_|Args],
+  Spec =.. [_|ArgSpecs],
+  ( Called = Goal
+  ; nth1(Index, ArgSpecs, ArgSpec),
+    ( integer(ArgSpec) ; ArgSpec == (^) ),
+    nth1(Index, Args, Arg),
+    interfacetest:called_goal(Arg, Called)
+  ).
+interfacetest:called_goal(Goal, Goal).
+
+
 %! interfacetest:written_fact(+Goal, -Fact)
 %
 % Goal adds or removes Fact in the database.
@@ -607,9 +673,14 @@ test(argv_version_exitcodes_target_flags_verify_requests) :-
         retractall(interface:argv_(_, _)),
         assertz(interface:argv_([merge(false), mode(standalone)], [])),
         catch(interface:process_requests(standalone), test_halt(1), true),
+        % The same request inside the daemon ends with the same status,
+        % without a halt.
         assertz(daemon:running),
-        interface:process_requests(standalone),
-        retractall(daemon:running)
+        catch(( interface:process_requests(standalone), Ended = no ),
+              request_exit(Status),
+              Ended = yes(Status)),
+        retractall(daemon:running),
+        Ended == yes(1)
       )),
     ( retractall(interface:halt(_)),
       retractall(interface:prolog),
@@ -622,7 +693,7 @@ test(argv_version_exitcodes_target_flags_verify_requests) :-
 
 test(actions_full_coverage) :-
   user:ensure_loaded(portage('Source/Application/Mode/client.pl')),
-  redefine_system_predicate(action:halt(_)),
+  redefine_system_predicate(interface:halt(_)),
   findall(O-A, interface:argv_(O, A), SavedArgv),
   V1 = version([1,0], '', 4, 0, '', 0, '1.0'),
   tmp_file(act_dir, TmpDir),
@@ -632,7 +703,7 @@ test(actions_full_coverage) :-
   make_directory(KnowDir),
   os:compose_path(TmpDir, 'world', WorldFile),
   setup_call_cleanup(
-    ( asserta((action:halt(Code) :- throw(act_halt(Code)))),
+    ( asserta((interface:halt(Code) :- throw(act_halt(Code)))),
       retractall(interface:argv_(_, _)),
       assertz(interface:argv_([mode(standalone), host(localhost), port(4000)], [])),
       setenv('PORTAGE_NG_STATE', TmpDir),
@@ -675,6 +746,8 @@ test(actions_full_coverage) :-
         action:process_build(['cat/pkg'], []),
         unwrap_predicate(builder:build/1, test_cov),
         catch(action:handle_build_exception(halt(2), []), halt(2), true),
+        catch(action:handle_build_exception(request_exit(2), [ci(true)]),
+              request_exit(2), true),
         catch(action:handle_build_exception(boom, [ci(true)]), act_halt(3), true),
         catch(action:handle_build_exception(boom, []), boom, true),
         asserta(builder:last_build_status(0, 1, 0)),
@@ -835,8 +908,8 @@ test(actions_full_coverage) :-
       )),
     ( unwrap_predicate(explainer:call_llm/3, test_cov),
       unittest:restore_stable_amd64,
-      retractall(action:halt(_)),
-      asserta((action:halt(C) :- system:halt(C))),
+      retractall(interface:halt(_)),
+      asserta((interface:halt(C) :- system:halt(C))),
       ignore(kb:deregister(test_act_repo)),
       retractall(portage:graph),
       retractall(portage:graph_emerge),
