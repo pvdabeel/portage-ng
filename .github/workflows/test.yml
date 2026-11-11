@@ -14,15 +14,26 @@ jobs:
       - uses: actions/checkout@v4
 
       # Ubuntu 26 ships SWI-Prolog 9.2.9. This project requires SWI 10.
+      # The deb comes from Launchpad. A copy is kept in the Actions cache,
+      # so a Launchpad outage does not fail the run.
+      - name: Restore cached SWI-Prolog package
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/swipl-deb
+          key: swipl-deb-${{ runner.os }}-${{ runner.arch }}-
+          restore-keys: swipl-deb-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Install SWI-Prolog
+        id: swipl
         run: |
           set +e
-          bash .github/scripts/install-swipl.sh > "$RUNNER_TEMP/swi-install.log" 2>&1
+          SWIPL_DEB_CACHE="$HOME/.cache/swipl-deb" \
+            bash .github/scripts/install-swipl.sh > "$RUNNER_TEMP/swi-install.log" 2>&1
           code=$?
           if [ "$code" != 0 ]; then
             {
               echo "install_exit=$code"
-              grep -E '^(OS |Installing |From |No SWI|E:|Err:|W: )' "$RUNNER_TEMP/swi-install.log" || true
+              grep -E '^(OS |Installing |Using |Launchpad |No SWI|curl: |E:|Err:|W: )' "$RUNNER_TEMP/swi-install.log" || true
             } | head -n 25 | while IFS= read -r line; do
               line=${line//%/%25}
               line=${line//$'\r'/%0D}
@@ -30,6 +41,17 @@ jobs:
             done
             exit "$code"
           fi
+          grep -E '^Launchpad ' "$RUNNER_TEMP/swi-install.log" | while IFS= read -r line; do
+            echo "::warning title=SWI install::$line"
+          done
+          exit 0
+
+      - name: Keep the SWI-Prolog package for later runs
+        if: steps.swipl.outputs.deb_new == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/swipl-deb
+          key: swipl-deb-${{ runner.os }}-${{ runner.arch }}-${{ steps.swipl.outputs.deb_name }}
 
       - name: Create private config files from templates
         run: |
@@ -78,15 +100,26 @@ jobs:
       - uses: actions/checkout@v4
 
       # Ubuntu 26 ships SWI-Prolog 9.2.9. This project requires SWI 10.
+      # The deb comes from Launchpad. A copy is kept in the Actions cache,
+      # so a Launchpad outage does not fail the run.
+      - name: Restore cached SWI-Prolog package
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/swipl-deb
+          key: swipl-deb-${{ runner.os }}-${{ runner.arch }}-
+          restore-keys: swipl-deb-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Install SWI-Prolog
+        id: swipl
         run: |
           set +e
-          bash .github/scripts/install-swipl.sh > "$RUNNER_TEMP/swi-install.log" 2>&1
+          SWIPL_DEB_CACHE="$HOME/.cache/swipl-deb" \
+            bash .github/scripts/install-swipl.sh > "$RUNNER_TEMP/swi-install.log" 2>&1
           code=$?
           if [ "$code" != 0 ]; then
             {
               echo "install_exit=$code"
-              grep -E '^(OS |Installing |From |No SWI|E:|Err:|W: )' "$RUNNER_TEMP/swi-install.log" || true
+              grep -E '^(OS |Installing |Using |Launchpad |No SWI|curl: |E:|Err:|W: )' "$RUNNER_TEMP/swi-install.log" || true
             } | head -n 25 | while IFS= read -r line; do
               line=${line//%/%25}
               line=${line//$'\r'/%0D}
@@ -94,6 +127,17 @@ jobs:
             done
             exit "$code"
           fi
+          grep -E '^Launchpad ' "$RUNNER_TEMP/swi-install.log" | while IFS= read -r line; do
+            echo "::warning title=SWI install::$line"
+          done
+          exit 0
+
+      - name: Keep the SWI-Prolog package for later runs
+        if: steps.swipl.outputs.deb_new == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/swipl-deb
+          key: swipl-deb-${{ runner.os }}-${{ runner.arch }}-${{ steps.swipl.outputs.deb_name }}
 
       - name: Create private config files from templates
         run: |
