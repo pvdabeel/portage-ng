@@ -52,7 +52,7 @@ digraph portage_usage {
     // Usage
     prover [label="Prover / Orderer\n\nportage://Entry\npkg://Entry\noverlay://Entry", fillcolor="#e8e8e8", shape=ellipse];
 
-    prover -> kb [label="kb://query(...)"];
+    prover -> kb [label="kb:query(...)"];
     prover -> portage [label="portage://entry(...)"];
     prover -> pkg [label="pkg://entry(...)"];
 }

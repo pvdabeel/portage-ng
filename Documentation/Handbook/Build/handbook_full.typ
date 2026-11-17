@@ -9865,7 +9865,7 @@ context. It is defined simply as
 `'://'(Context, Predicate) :- Context:Predicate.` --- a thin wrapper
 that resolves the context module and dispatches the call. This operator
 appears throughout portage-ng in forms like `portage://entry(E)` or
-`kb://query(Q, R)`.
+`kb:query(Q, R)`.
 
 == Example: a Person class
 <example-a-person-class>
@@ -9935,7 +9935,7 @@ In #strong[client mode], the knowledge base instance is created with a
 hostname and port: `kb:newinstance(knowledgebase(Host, Port))`. This
 switches the instance into proxy mode, where queries are forwarded to
 the remote server via Pengine RPC --- but the calling code sees the same
-`kb://query(Q, R)` interface as in standalone mode.
+`kb:query(Q, R)` interface as in standalone mode.
 
 === Context terms in the prover
 <context-terms-in-the-prover>
@@ -9950,9 +9950,9 @@ connection is explored in detail in
 == Serialization
 <serialization>
 Context instances support serialization through the knowledge base's
-`save` and `load` predicates. When `kb://save` is called, the cached
+`save` and `load` predicates. When `kb:save` is called, the cached
 facts from all registered repository instances are written to a QLF file
-(`Knowledge/kb.qlf`). On the next startup, `kb://load` reads the
+(`Knowledge/kb.qlf`). On the next startup, `kb:load` reads the
 compiled file back, restoring all repository instances to their previous
 state without re-parsing the Portage tree from disk. This is what makes
 portage-ng's startup fast --- the full knowledge base (30,000+ ebuilds
