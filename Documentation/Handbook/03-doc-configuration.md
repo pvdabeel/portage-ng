@@ -74,6 +74,7 @@ The machine config file is where repositories are created and registered — cov
 | `config:time_limit/1` | `300` (seconds) | Maximum time for a single proof/plan computation before aborting. |
 | `config:proving_target/1` | `run` | Proof depth: `install` for compile-time dependencies only, `run` to include runtime dependencies. |
 | `config:reprove_max_retries/1` | `20` | Maximum iterative learn-and-restart retries when the prover encounters conflicts. |
+| `config:reprove_max_alternatives/1` | `2` | Maximum alternative proofs per prove when the retry loop conceded a conflict and its plan still has two or more different conflicts: a package is held to another candidate and the cheaper complete proof is kept. `0` switches it off. |
 | `config:avoid_reinstall/1` | `false` | When `true`, verify already-installed packages instead of re-merging them. |
 
 ### Building

@@ -155,6 +155,7 @@ cnselect:grouped_dep_candidate_satisfies_effective_domain(Action, C, N, PackageD
 cnselect:grouped_dep_candidate_satisfies_effective_domain_precomputed(EffectiveDomain, RejectDomain, C, N, RepoEntry) :-
   \+ version_domain:domain_inconsistent(EffectiveDomain),
   \+ cn_domain_candidate_rejected(C, N, RejectDomain, RepoEntry),
+  \+ overruled_excludes(C, N, RepoEntry),
   \+ feedback:version_excluded(C, N, RepoEntry),
   % The prove-time GHC filter (portage-ng#112) lives in the builder
   % capability (Exceptions/ghcabi.pl), which only the shell/build
@@ -514,8 +515,8 @@ cnselect:maybe_request_grouped_dep_reprove(Action, C, N, PackageDeps, Context) :
   ( SelectedCandidates == [],
     reason_linked_selected_reprove_target(Reasons, SourceC, SourceN, SourceCandidates)
   ->
-    throw(prover_reprove(cn_domain(SourceC, SourceN, none, SourceCandidates, Reasons)))
-  ; throw(prover_reprove(cn_domain(C, N, RejectDomain, SelectedCandidates, Reasons)))
+    request_reprove(cn_domain(SourceC, SourceN, none, SourceCandidates, Reasons))
+  ; request_reprove(cn_domain(C, N, RejectDomain, SelectedCandidates, Reasons))
   ).
 cnselect:maybe_request_grouped_dep_reprove(_Action, _C, _N, _PackageDeps, _Context) :-
   fail.
@@ -581,12 +582,22 @@ cnselect:add_cn_domain_rejects(_C, _N, _Domain, Candidates, false) :-
   !.
 cnselect:add_cn_domain_rejects(C, N, Domain0, Candidates0, Added) :-
   cn_domain_reject_key(C, N, Domain0, Key),
-  sort(Candidates0, Candidates),
-  ( memo:cn_domain_reject_(Key, OldSet) -> true ; OldSet = [] ),
-  ord_union(OldSet, Candidates, NewSet),
-  ( NewSet == OldSet ->
+  % A conceded candidate takes no further rejects. Its conflicts are no
+  % longer raised, so nothing could give it back once rejected, and a
+  % reject that arrives as the origin of another package's conflict
+  % (add_cn_domain_origin_rejects/2) would count as progress each time.
+  exclude(entry_conceded(C, N), Candidates0, Candidates1),
+  sort(Candidates1, Candidates),
+  % A candidate that a wider key already rejects for this domain (the
+  % global key written by parent narrowing, say) is not news: recording
+  % it under the narrower key as well leaves every lookup as it was, and
+  % reporting it as progress buys one pass identical to the last.
+  exclude(cn_domain_candidate_rejected(C, N, Domain0), Candidates, Fresh),
+  ( Fresh == [] ->
       Added = false
-  ; ( retract(memo:cn_domain_reject_(Key, _)) -> true ; true ),
+  ; ( memo:cn_domain_reject_(Key, OldSet) -> true ; OldSet = [] ),
+    ord_union(OldSet, Fresh, NewSet),
+    ( retract(memo:cn_domain_reject_(Key, _)) -> true ; true ),
     assertz(memo:cn_domain_reject_(Key, NewSet)),
     Added = true
   ),
@@ -638,6 +649,696 @@ cnselect:cn_domain_reprove_enabled :-
   prover:reprove_enabled,
   !.
 
+
+%! cnselect:request_reprove(+Info) is failure.
+%
+% Raises the conflict Info = cn_domain(C, N, Domain, Candidates, Reasons)
+% as a `prover_reprove/1` exception, unless it has been conceded
+% (conflict_conceded/1). For a conceded conflict it fails, which is
+% what every caller does when reprove is disabled: the conflict is left
+% to the assumption fallback. Never succeeds.
+
+cnselect:request_reprove(cn_domain(C, N, Domain, Candidates, Reasons)) :-
+  \+ conflict_conceded(cn_domain(C, N, Domain, Candidates, Reasons)),
+  throw(prover_reprove(cn_domain(C, N, Domain, Candidates, Reasons))).
+
+
+%! cnselect:cn_conceded(+C, +N) is semidet.
+%
+% True when the conflicts about (C,N), in every slot, stalled the
+% bounded reprove loop in this proof and were conceded
+% (concede_conflict/1).
+
+cnselect:cn_conceded(C, N) :-
+  memo:cn_domain_conceded_(C, N, any),
+  !.
+
+
+%! cnselect:cn_conceded(+C, +N, +Scope) is semidet.
+%
+% True when the conflicts about (C,N) in Scope were conceded: Scope is
+% `any` for the package as a whole, or one of its slots. A package
+% conceded as a whole is conceded in each slot.
+
+cnselect:cn_conceded(C, N, _Scope) :-
+  memo:cn_domain_conceded_(C, N, any),
+  !.
+cnselect:cn_conceded(C, N, Scope) :-
+  Scope \== any,
+  memo:cn_domain_conceded_(C, N, Scope),
+  !.
+
+
+%! cnselect:entry_conceded(+C, +N, +RepoEntry) is semidet.
+%
+% True when the conflicts about RepoEntry, a candidate of (C,N), were
+% conceded: for the package as a whole, or for the slot of RepoEntry.
+
+cnselect:entry_conceded(C, N, _RepoEntry) :-
+  memo:cn_domain_conceded_(C, N, any),
+  !.
+cnselect:entry_conceded(C, N, RepoEntry) :-
+  memo:cn_domain_conceded_(C, N, _),
+  version_domain:candidate_slot(RepoEntry, Slot),
+  memo:cn_domain_conceded_(C, N, Slot),
+  !.
+
+
+%! cnselect:conflict_conceded(+Info) is semidet.
+%
+% True when the conflict Info = cn_domain(C, N, Domain, Candidates,
+% Reasons) was conceded: (C,N) as a whole, or the one slot Info is
+% about (conflict_slot/4). A conflict that is not about one slot is
+% still raised for a package of which only slots were conceded.
+
+cnselect:conflict_conceded(cn_domain(C, N, _Domain, _Candidates, _Reasons)) :-
+  memo:cn_domain_conceded_(C, N, any),
+  !.
+cnselect:conflict_conceded(cn_domain(C, N, Domain, Candidates, Reasons)) :-
+  memo:cn_domain_conceded_(C, N, _),
+  conflict_slot(Domain, Candidates, Reasons, Slot),
+  memo:cn_domain_conceded_(C, N, Slot),
+  !.
+
+
+%! cnselect:conflict_slot(+Domain, +Candidates, +Reasons, -Slot) is semidet.
+%
+% Slot is the one slot a conflict is about: the slot its Domain is
+% scoped or restricted to, else the slot its Candidates share, else,
+% for a conflict without candidates, the slot its Reasons ask for
+% (`introduced_by(_, _, slot([slot(S)]))`: a dependency on a slot that
+% has no candidate). Fails for a conflict that spans slots or names
+% none.
+
+cnselect:conflict_slot(scoped(slot(Slot0), _Domain), _Candidates, _Reasons, Slot) :-
+  !,
+  slotmeta:canon_slot(Slot0, Slot).
+cnselect:conflict_slot(scoped(_Scope, Domain), Candidates, Reasons, Slot) :-
+  !,
+  conflict_slot(Domain, Candidates, Reasons, Slot).
+cnselect:conflict_slot(Domain, _Candidates, _Reasons, Slot) :-
+  domain_slot_scope(Domain, slot(Slot)),
+  !.
+cnselect:conflict_slot(_Domain, Candidates, _Reasons, Slot) :-
+  Candidates = [_|_],
+  !,
+  findall(Slot0,
+          ( member(RepoEntry, Candidates),
+            version_domain:candidate_slot(RepoEntry, Slot0)
+          ),
+          Slots0),
+  sort(Slots0, [Slot]).
+cnselect:conflict_slot(_Domain, [], Reasons, Slot) :-
+  is_list(Reasons),
+  findall(Slot1,
+          ( member(introduced_by(_, _, slot(Meta)), Reasons),
+            is_list(Meta),
+            member(slot(Slot0), Meta),
+            slotmeta:canon_slot(Slot0, Slot1)
+          ),
+          Slots0),
+  sort(Slots0, [Slot]).
+
+
+%! cnselect:conflict_scope(+Info, -Scope, -Domain) is det.
+%
+% Scope is what conceding the conflict Info concedes: the one slot Info
+% is about (conflict_slot/4) when (C,N) has candidates in more than one
+% slot, `any` (the package as a whole) otherwise. Domain is the domain
+% Info asked a candidate for, without its reject scope.
+%
+% A package with one slot is conceded as a whole whatever the conflict
+% names, so that a later conflict about it that names no slot is not
+% raised again.
+
+cnselect:conflict_scope(cn_domain(C, N, Domain0, Candidates, Reasons), Scope, Domain) :-
+  ( Domain0 = scoped(_, Domain1) -> Domain = Domain1 ; Domain = Domain0 ),
+  ( conflict_slot(Domain0, Candidates, Reasons, Slot),
+    cn_has_slots(C, N)
+  ->
+    Scope = Slot
+  ; Scope = any
+  ),
+  !.
+
+
+%! cnselect:cn_has_slots(+C, +N) is semidet.
+%
+% True when the tree has entries of (C,N) in more than one slot.
+
+cnselect:cn_has_slots(C, N) :-
+  cache:ordered_entry(Repo, Entry, C, N, _),
+  version_domain:candidate_slot(Repo://Entry, Slot),
+  cache:ordered_entry(OtherRepo, OtherEntry, C, N, _),
+  version_domain:candidate_slot(OtherRepo://OtherEntry, OtherSlot),
+  OtherSlot \== Slot,
+  !.
+
+
+%! cnselect:concede_cn(+C, +N) is semidet.
+%
+% concede_conflict/1 for a stall on (C,N) that names no domain, no
+% candidates and no reasons: concedes the package as a whole.
+
+cnselect:concede_cn(C, N) :-
+  concede_conflict(cn_domain(C, N, none, [], [])).
+
+
+%! cnselect:concede_conflict(+Info) is semidet.
+%
+% Concedes the conflicts about (C,N), which stalled on the conflict
+% Info = cn_domain(C, N, Domain, Candidates, Reasons): they are no
+% longer raised (request_reprove/1) and the candidates rejected for
+% (C,N) on the way to the stall are eligible again, exactly as in the
+% final reprove-disabled pass. Unlike that pass, conflicts about every
+% other package are still repaired. Fails when they were conceded
+% before, so the caller sees that conceding makes no progress.
+%
+% What is conceded is the scope of Info (conflict_scope/3): the package
+% as a whole, or, for a package with several slots, the one slot Info
+% is about. A dependency on a slot that has no candidate
+% (sys-devel/clang-crossdev-wrappers-16 on llvm-core/clang:16) says
+% nothing about the other slots; their conflicts are still repaired,
+% their rejects and learned domains stay.
+%
+% Parent narrowing climbs: a dependency of P on X that cannot be
+% satisfied rejects P, the consumer of P then finds no P and is rejected
+% in turn, and so on until a consumer has another version to offer. A
+% stall means the climb reached a package with none (the root target at
+% the latest), so every step of it was futile. The packages the climb
+% went through (memo:cn_narrowed_for_/6) are conceded along with (C,N);
+% the next pass then selects them again and records the one dependency
+% the climb started from as the assumption. Conceding them one stall at
+% a time gives the same result for one attempt per step.
+%
+% The climb also tried versions that the plan does not end up with, and
+% a conflict under such a version may have learned a cn_domain for a
+% package of the climb (dev-haskell/hspec-wai-0.10.1: `<primitive-0.9`
+% was learned under aeson-2.1.2.1, which was only selected because the
+% climb had rejected aeson-2.2.5.1). No conflict about a conceded
+% package is raised any more, so nothing would correct such a domain.
+% The learned domains of the conceded packages therefore go back to
+% what they were at the start of the pass in which the climb took its
+% first step (climb_before/4; memo:cn_narrowed_for_/6 keeps that
+% snapshot), all of them to that one pass; what was learned in earlier
+% passes stays. The start of the pass, not the step
+% itself: the conflict that starts a climb usually learns a domain for
+% the dependency first and narrows the parent because of it
+% (kde-frameworks/kauth-6.29.0: `=kconfig-6.31*`, then
+% kcolorscheme-6.29.0 rejected for its `=kconfig-6.29*`). After the
+% concession nothing more is learned for these packages
+% (learn_cn_domain/5).
+%
+% Not every narrowing of (C,N) is a step of the climb that stalled. A
+% version of (C,N) outside the conceded scope, or one that Domain does
+% not admit, could not have served the consumer that is stuck, so its
+% rejection is not why the consumer is stuck: that narrowing is settled
+% (stalled_record/3). The version stays rejected, the dependency it was
+% rejected for is not conceded, and its pass does not count as the
+% start of the climb. Following it would concede a dependency whose
+% conflicts are still repaired and take the learned domains back to a
+% pass before the climb began.
+%
+% The packages below (C,N) in the climb are conceded as a whole: the
+% narrowing record does not say which of their slots the dependency
+% asked for.
+%
+% A stall without a domain gives nothing to tell the narrowings of
+% (C,N) apart by, and all of them are followed: the package ran out of
+% candidates because of every one (llvm-runtimes/offload-19.1.7:
+% clang-runtime 23, 22, 21 and 20 were each rejected for openmp before
+% the stall named clang-runtime-18.1.8-r1). Following only the
+% narrowing of the candidates the stall names was measured tree-wide:
+% 0 targets better, 4 worse, 1 mixed, +60 `unsatisfied_constraints`
+% (kde-frameworks/ktexteditor-6.29.0 0 -> 39, kauth-6.29.0 0 -> 19).
+
+cnselect:concede_conflict(cn_domain(C, N, Domain0, Candidates, Reasons)) :-
+  conflict_scope(cn_domain(C, N, Domain0, Candidates, Reasons), Scope, Domain),
+  \+ cn_conceded(C, N, Scope),
+  findall(Entry-(ChildC-ChildN),
+          memo:cn_narrowed_for_(C, N, Entry, ChildC, ChildN, _),
+          Records),
+  partition(stalled_record(Scope, Domain), Records, Stalled, Settled),
+  pairs_keys_values(Stalled, StalledEntries, Children),
+  pairs_keys(Settled, SettledEntries),
+  climb_members(Children, [C-N], Members),
+  climb_before(C-N, StalledEntries, Members, Before),
+  forall(member(MemberC-MemberN, Members),
+         ( MemberC-MemberN == C-N ->
+             concede_cn_member(MemberC, MemberN, Scope, Before, SettledEntries)
+         ; concede_cn_member(MemberC, MemberN, any, Before, [])
+         )).
+
+
+%! cnselect:stalled_record(+Scope, +Domain, +Record) is semidet.
+%
+% True when Record (ParentEntry-Child, a narrowing of the package that
+% stalled) is a step of the climb that stalled: ParentEntry lies in the
+% conceded Scope and is a version Domain admits (every version when the
+% stall named no domain).
+
+cnselect:stalled_record(Scope, Domain, Entry-_Child) :-
+  entry_in_scope(Scope, Entry),
+  version_domain:domain_allows_candidate(Domain, Entry).
+
+
+%! cnselect:entry_in_scope(+Scope, +RepoEntry) is semidet.
+%
+% True when RepoEntry lies in Scope: `any`, or the slot of RepoEntry.
+
+cnselect:entry_in_scope(any, _RepoEntry) :-
+  !.
+cnselect:entry_in_scope(Slot, RepoEntry) :-
+  version_domain:candidate_slot(RepoEntry, Slot).
+
+
+%! cnselect:climb_members(+Open, +Seen, -Members) is det.
+%
+% Members are Seen plus the (C,N) pairs (as C-N) in Open that are not
+% conceded yet and, transitively, the packages each of them was narrowed
+% for (memo:cn_narrowed_for_/6).
+
+cnselect:climb_members([], Members, Members).
+cnselect:climb_members([C-N|Open], Seen, Members) :-
+  ( ( memberchk(C-N, Seen) ; cn_conceded(C, N) ) ->
+      climb_members(Open, Seen, Members)
+  ; findall(ChildC-ChildN, memo:cn_narrowed_for_(C, N, _, ChildC, ChildN, _), Children),
+    append(Children, Open, Open1),
+    climb_members(Open1, [C-N|Seen], Members)
+  ).
+
+
+%! cnselect:climb_before(+Stall, +StalledEntries, +Members, -Before) is det.
+%
+% Before is `learned(Snapshot)`, the cn_domain constraints that were
+% learned at the start of the pass in which the climb that stalled on
+% Stall (a C-N pair) took its first step: the snapshot of the earliest
+% narrowing of one of the Members (memo:cn_narrowed_for_/6 keeps the
+% records in the order they were made). A narrowing of the stalled
+% package for an entry that is not one of its StalledEntries is settled
+% (stalled_record/3) and does not count. `none` for a stall without a
+% climb.
+%
+% One snapshot serves every package of the climb, on purpose. From its
+% first step on the climb selects versions the plan does not keep, and
+% a conflict under such a version can learn a domain for a package
+% before any narrowing names that package. Restoring each package from
+% the pass of the first narrowing that names it leaves such a domain in
+% place. Measured tree-wide: 0 targets better, 1 worse
+% (dev-haskell/criterion-1.5.11.0, 6 -> 8 `unsatisfied_constraints`:
+% a domain learned for onetuple during the climb stays), and
+% dev-haskell/statistics-0.15.2.0 takes three times the inferences for
+% the same plan.
+
+cnselect:climb_before(StallC-StallN, StalledEntries, Members, Before) :-
+  ( memo:cn_narrowed_for_(ParentC, ParentN, Entry, _, _, Learned),
+    memberchk(ParentC-ParentN, Members),
+    ( ParentC-ParentN == StallC-StallN -> memberchk(Entry, StalledEntries) ; true )
+  ->
+    Before = learned(Learned)
+  ; Before = none
+  ).
+
+
+%! cnselect:concede_cn_member(+C, +N, +Scope, +Before, +Settled) is det.
+%
+% Concedes one package of a climb in Scope (`any` or a slot): marks it,
+% releases its rejected candidates in Scope other than the Settled
+% entries and, when Before is `learned(Snapshot)`, puts its learned
+% domains for Scope back to Snapshot. Before is `none` for a stall
+% without a climb; the learned domains are then left as they are.
+
+cnselect:concede_cn_member(C, N, Scope, Before, Settled) :-
+  assertz(memo:cn_domain_conceded_(C, N, Scope)),
+  findall(Key-Set,
+          ( memo:cn_domain_reject_(Key, Set),
+            Key = key(C, N, _, _)
+          ),
+          Rejects),
+  retractall(memo:cn_domain_reject_(key(C, N, _, _), _)),
+  forall(member(Key-Set, Rejects),
+         ( exclude(reject_released(Scope, Settled), Set, Kept),
+           ( Kept == [] -> true ; assertz(memo:cn_domain_reject_(Key, Kept)) )
+         )),
+  ( Before = learned(Snapshot) ->
+      ( Scope == any ->
+          prover:learned_restore(cn_domain(C, N, _), Snapshot)
+      ; prover:learned_restore(cn_domain(C, N, Scope), Snapshot)
+      )
+  ; true
+  ).
+
+
+%! cnselect:reject_released(+Scope, +Settled, +RepoEntry) is semidet.
+%
+% True when a concession in Scope makes the rejected RepoEntry eligible
+% again: it lies in Scope and is not one of the Settled entries.
+
+cnselect:reject_released(Scope, Settled, RepoEntry) :-
+  entry_in_scope(Scope, RepoEntry),
+  \+ memberchk(RepoEntry, Settled).
+
+
+%! cnselect:learn_cn_domain(+C, +N, +Slot, +Domain, -Added) is det.
+%
+% Learns Domain for cn_domain(C, N, Slot) in the prover's learned
+% constraint store (prover:learn/3). Added is `true` when the store
+% changed. Every cn_domain is learned through this predicate.
+%
+% Nothing is learned for a conceded (C,N) or for a conceded slot of it
+% (Added is `false`). A learned domain is corrected by raising the
+% conflicts it causes, and those are no longer raised
+% (request_reprove/1): a domain learned from a conflict that a later
+% pass resolves differently would stay and turn every dependency on
+% (C,N) that disagrees with it into an assumption.
+
+cnselect:learn_cn_domain(C, N, Slot, _Domain, false) :-
+  cn_conceded(C, N, Slot),
+  !.
+cnselect:learn_cn_domain(C, N, Slot, Domain, Added) :-
+  prover:learn(cn_domain(C, N, Slot), Domain, Added).
+
+
+%! cnselect:note_pass_learned is det.
+%
+% Records the cn_domain constraints learned so far, at the start of a
+% proof pass (heuristic:begin_pass/1). See pass_learned/1.
+
+cnselect:note_pass_learned :-
+  prover:learned_snapshot(cn_domain(_, _, _), Learned),
+  nb_setval(rules_pass_learned, Learned).
+
+
+%! cnselect:pass_learned(-Learned) is det.
+%
+% Learned is the snapshot (prover:learned_snapshot/2) of the cn_domain
+% constraints that were learned when the current proof pass started.
+
+cnselect:pass_learned(Learned) :-
+  ( nb_current(rules_pass_learned, Learned) ->
+      true
+  ; Learned = []
+  ).
+
+
+% -----------------------------------------------------------------------------
+%  Overruling a package (alternative proofs)
+% -----------------------------------------------------------------------------
+
+%! cnselect:overrule_alternatives(+Proof, +Constraints, -Alternatives) is det.
+%
+% Alternatives lists, as overrule(C, N, Candidate), the packages for
+% which the completed Proof (with its Constraints) may have ended up on
+% the wrong side of a conflict, each with the candidate to hold it to
+% instead. The prover proves them as alternatives to Proof and keeps
+% what leaves fewer assumptions (heuristic:reprove_alternatives/4).
+%
+% A conflict between two dependencies on (C,N) learns the narrower
+% domain and rejects the candidate that was selected. The retry loop
+% then narrows the consumers that cannot live with that domain, and
+% concedes when that climb stalls. Which side of the first conflict was
+% kept is never reconsidered, and it decides how many dependencies are
+% assumed in the end. dev-haskell/xml-hamlet-0.5.0.1 needs `<ghc-9.1`:
+% that bound is learned, ghc-9.8.4 is rejected, and the plan reports
+% twelve dependencies of other packages that no ghc-9.0 world can
+% satisfy, where giving up the one `<ghc-9.1` leaves two.
+%
+% Two readings of the finished proof name a package and a candidate:
+%
+%   - majority (overrule_by_majority/7): (C,N) was conceded (as a whole
+%     or in one slot) and another candidate satisfies more of the
+%     dependencies Proof has on it than the selected one. The gain is
+%     counted, so these come first, the largest gain leading.
+%   - reversal (overrule_by_reversal/6): (C,N) has a learned domain and
+%     a consumer was narrowed for it, or it was conceded. The candidate
+%     is the best-ranked one outside that domain: what a proof without
+%     the domain selects. The dependencies in Proof say little here,
+%     its packages were picked to fit the learned domain. More
+%     consumers narrowed comes first.
+%
+% Left alone (overrule_candidates/3): a package that is overruled
+% already, one whose candidates span several slots (a learned domain is
+% kept per slot and several candidates can be selected side by side),
+% and the package of a root target (the root is the request, not a
+% choice).
+
+cnselect:overrule_alternatives(Proof, Constraints, Alternatives) :-
+  prover:learned_snapshot(cn_domain(_, _, _), Learned),
+  findall(C-N, member(cn_domain(C, N, _)-_, Learned), LearnedCNs),
+  findall(C-N, memo:cn_domain_conceded_(C, N, _), ConcededCNs),
+  append(LearnedCNs, ConcededCNs, CNs0),
+  sort(CNs0, CNs),
+  conceded_demands(Proof, Demands),
+  findall(Score-overrule(C, N, Candidate),
+          ( member(C-N, CNs),
+            overrule_candidates(C, N, Candidates),
+            ( overrule_by_majority(C, N, Candidates, Demands, Constraints, Candidate, Gain) ->
+                Score = majority(Gain)
+            ; overrule_by_reversal(C, N, Candidates, Learned, Candidate, Narrowed) ->
+                Score = learned(Narrowed)
+            )
+          ),
+          Scored),
+  sort(1, @>=, Scored, Sorted),
+  pairs_values(Sorted, Alternatives).
+
+
+%! cnselect:overrule_candidates(+C, +N, -Candidates) is semidet.
+%
+% Candidates are the candidates of (C,N) in preference order, when
+% (C,N) may be overruled at all (see overrule_alternatives/3).
+%
+% Enumerated with an empty proof context and no slot lock on purpose:
+% the finished proof is being reviewed, not a live dependency, and a
+% package whose candidates span several slots is refused below. The
+% preference order of acceptance:accepted_keyword_candidate/7 is kept
+% (order-preserving dedup, not a sort).
+
+cnselect:overrule_candidates(C, N, Candidates) :-
+  \+ memo:cn_overruled_(C, N, _),
+  findall(Repo://Entry,
+          acceptance:accepted_keyword_candidate(install, C, N, [], _, [], Repo://Entry),
+          Candidates0),
+  candidates_dedup(Candidates0, Candidates),
+  Candidates = [_, _|_],
+  \+ cn_is_root_target(C, N),
+  findall(Slot, ( member(E, Candidates), version_domain:candidate_slot(E, Slot) ), Slots0),
+  sort(Slots0, [_]).
+
+
+%! cnselect:candidates_dedup(+Candidates, -Unique) is det.
+%
+% Unique is Candidates without later duplicates, in the same order.
+% SWI-Prolog list_to_set/2 does the same; named here so the preference
+% order of overrule_candidates/3 is not mistaken for a sort.
+
+cnselect:candidates_dedup([], []).
+cnselect:candidates_dedup([H|T], [H|R]) :-
+  exclude(=(H), T, T1),
+  candidates_dedup(T1, R).
+
+
+%! cnselect:cn_is_root_target(+C, +N) is semidet.
+%
+% True when an entry of (C,N) is a root target of the current prove.
+% Asked of every entry in the tree, not of the accepted candidates: a
+% root target that is masked or not keyworded is none of those.
+
+cnselect:cn_is_root_target(C, N) :-
+  cache:ordered_entry(Repo, Entry, C, N, _),
+  entry_is_root_target(Repo://Entry),
+  !.
+
+
+%! cnselect:overrule_by_reversal(+C, +N, +Candidates, +Learned, -Candidate, -Narrowed) is semidet.
+%
+% Candidate is the first of Candidates that a learned cn_domain of
+% (C,N) in the Learned snapshot excludes, provided a consumer was
+% narrowed for (C,N) (Narrowed counts them) or (C,N) was conceded.
+
+cnselect:overrule_by_reversal(C, N, Candidates, Learned, Candidate, Narrowed) :-
+  findall(ParentC-ParentN, memo:cn_narrowed_for_(ParentC, ParentN, _, C, N, _), Parents0),
+  sort(Parents0, Parents),
+  length(Parents, Narrowed),
+  ( Narrowed > 0 -> true ; cn_conceded_any(C, N) ),
+  member(Candidate, Candidates),
+  member(cn_domain(C, N, _)-Domain, Learned),
+  \+ version_domain:domain_allows_candidate(Domain, Candidate),
+  !.
+
+
+%! cnselect:overrule_by_majority(+C, +N, +Candidates, +Demands, +Constraints, -Candidate, -Gain) is semidet.
+%
+% Candidate is the one of Candidates that satisfies most of the Demands
+% on the conceded (C,N), the preferred one among equals, and Gain is
+% how many more it satisfies than the candidate selected in
+% Constraints. Fails when no candidate satisfies more. A package
+% conceded in one slot only (cn_domain_conceded_/3) counts: its
+% conflicts were given up the same way.
+
+cnselect:overrule_by_majority(C, N, Candidates, Demands, Constraints, Candidate, Gain) :-
+  cn_conceded_any(C, N),
+  findall(PackageDeps, member(demand(C, N, _, PackageDeps), Demands), CNDemands),
+  CNDemands \== [],
+  ( get_assoc(selected_cn(C, N), Constraints, ordset(Selected0)) ->
+      findall(SelRepo://SelEntry, member(selected(SelRepo, SelEntry, _, _, _), Selected0), Selected1),
+      sort(Selected1, Selected)
+  ; Selected = []
+  ),
+  demands_missed(CNDemands, C, N, Selected, Current),
+  Current > 0,
+  findall(Missed-Index-Entry,
+          ( nth0(Index, Candidates, Entry),
+            demands_missed(CNDemands, C, N, [Entry], Missed)
+          ),
+          Scored0),
+  sort(Scored0, [Best-_-Candidate|_]),
+  Best < Current,
+  Gain is Current - Best.
+
+
+%! cnselect:conceded_demands(+Proof, -Demands) is det.
+%
+% Demands are the dependencies the completed Proof has on conceded
+% packages, as a sorted list of demand(C, N, Consumer, PackageDeps):
+% one per consumer literal and grouped dependency, whether the proof
+% satisfied it or assumed it. A package conceded in one slot only
+% counts (cn_conceded_any/2).
+
+cnselect:conceded_demands(Proof, Demands) :-
+  findall(demand(C, N, Consumer, PackageDeps),
+          ( gen_assoc(rule(Consumer), Proof, dep(_, Body)?_),
+            Consumer = _://_,
+            is_list(Body),
+            member(Literal, Body),
+            demand_literal(Literal, C, N, PackageDeps),
+            cn_conceded_any(C, N)
+          ),
+          Demands0),
+  sort(Demands0, Demands).
+
+
+%! cnselect:cn_conceded_any(+C, +N) is semidet.
+%
+% True when (C,N) was conceded in any scope: the package as a whole, or
+% one of its slots (memo:cn_domain_conceded_/3).
+
+cnselect:cn_conceded_any(C, N) :-
+  memo:cn_domain_conceded_(C, N, _),
+  !.
+
+
+%! cnselect:demand_literal(+Literal, -C, -N, -PackageDeps) is semidet.
+%
+% Literal is a regular (non-blocker) grouped dependency on (C,N).
+
+cnselect:demand_literal(grouped_package_dependency(no, C, N, PackageDeps):_?{_}, C, N, PackageDeps) :- !.
+cnselect:demand_literal(grouped_package_dependency(no, C, N, PackageDeps):_, C, N, PackageDeps).
+
+
+%! cnselect:demands_missed(+Demands, +C, +N, +Entries, -Missed) is det.
+%
+% Missed is the number of Demands (each a PackageDeps list) that no
+% entry in Entries satisfies.
+
+cnselect:demands_missed(Demands, C, N, Entries, Missed) :-
+  aggregate_all(count,
+                ( member(PackageDeps, Demands),
+                  \+ ( member(Entry, Entries),
+                       demand_admits(C, N, PackageDeps, Entry) )
+                ),
+                Missed).
+
+
+%! cnselect:demand_admits(+C, +N, +PackageDeps, +RepoEntry) is semidet.
+%
+% RepoEntry satisfies the version and slot requirements of every
+% dependency on (C,N) in PackageDeps.
+
+cnselect:demand_admits(C, N, PackageDeps, Repo://Entry) :-
+  forall(member(package_dependency(_Phase, no, C, N, O, V, _SlotReq, _Use), PackageDeps),
+         query:search(select(version, O, V), Repo://Entry)),
+  slotmeta:merge_slot_restriction(run, C, N, PackageDeps, SlotReq),
+  slotmeta:query_search_slot_constraint(SlotReq, Repo://Entry, _),
+  !.
+
+
+%! cnselect:overrule_begin(+C, +N, +Candidate) is semidet.
+%
+% Starts the alternative proof in which (C,N) is held to Candidate.
+% Everything the retry loop learned so far answered the candidate that
+% is now given up, so the proof starts over: rejects, concessions,
+% narrowing records, selection snapshots and the learned store are
+% emptied, and so are the per-proof records of failures met on the way
+% (assumption reasons, REQUIRED_USE violations, slot conflicts): they
+% describe candidates this proof may never select. What remains is the
+% overruled packages, this one and those
+% of alternatives kept earlier. Each is held to its candidate
+% (overruled_excludes/3), has it learned as an exact cn_domain, so that
+% config-time choices and the version pins of other packages see it
+% (candidate:learned_pin_miss/1), and is conceded: no conflict about it
+% is raised and nothing more is learned for it, so a dependency its
+% candidate does not satisfy is recorded as an assumption. Fails when
+% (C,N) is overruled already.
+
+cnselect:overrule_begin(C, N, Candidate) :-
+  \+ memo:cn_overruled_(C, N, _),
+  assertz(memo:cn_overruled_(C, N, Candidate)),
+  retractall(memo:cn_domain_reject_(_, _)),
+  retractall(memo:cn_narrowed_for_(_, _, _, _, _, _)),
+  retractall(memo:cn_domain_conceded_(_, _, _)),
+  retractall(memo:assumption_reason_cache_(_, _, _, _)),
+  retractall(memo:requse_violation_(_, _, _)),
+  retractall(memo:slot_conflict_(_, _, _)),
+  clear_cn_snapshots,
+  findall(Pin,
+          ( memo:cn_overruled_(KeptC, KeptN, Kept),
+            assertz(memo:cn_domain_conceded_(KeptC, KeptN, any)),
+            overruled_pin(KeptC, KeptN, Kept, Pin)
+          ),
+          Pins),
+  prover:learned_restore(_, Pins).
+
+
+%! cnselect:overruled_pin(+C, +N, +Candidate, -Pin) is nondet.
+%
+% Pin is a learned-store pair that holds (C,N) to the version of
+% Candidate: one under the slot of Candidate and one under `any`.
+
+cnselect:overruled_pin(C, N, Repo://Entry, cn_domain(C, N, Key)-Domain) :-
+  cache:ordered_entry(Repo, Entry, C, N, Ver),
+  version_domain:candidate_slot(Repo://Entry, Slot),
+  version_domain:domain_normalize(version_domain(any, [bound(equal, Ver)]), Domain),
+  ( Key = Slot ; Key = any ).
+
+
+%! cnselect:overrule_drop(+C, +N) is det.
+%
+% Forgets that (C,N) was overruled: its alternative proof was not kept.
+% The concession and the exact cn_domain pin overrule_begin/3 installed
+% for (C,N) go with it, so a later reading of the domain (another
+% alternative, or the proof of the retry loop once alternatives end)
+% does not still see (C,N) as held. Rejects and narrowing records of
+% the failed proof are left for the next overrule_begin/3 or for
+% heuristic:cleanup_state/0: nothing between those points reads them
+% for a package that is no longer overruled.
+
+cnselect:overrule_drop(C, N) :-
+  retractall(memo:cn_overruled_(C, N, _)),
+  retractall(memo:cn_domain_conceded_(C, N, _)),
+  prover:learned_restore(cn_domain(C, N, _), []).
+
+
+%! cnselect:overruled_excludes(+C, +N, +RepoEntry) is semidet.
+%
+% True when (C,N) is overruled (overrule_begin/3) and RepoEntry is not
+% the candidate it is held to.
+
+cnselect:overruled_excludes(C, N, RepoEntry) :-
+  memo:cn_overruled_(C, N, Kept),
+  Kept \== RepoEntry.
+
+
 %! cnselect:maybe_request_cn_domain_reprove(+C, +N, +Domain, +Selected)
 %
 % Throws prover_reprove/1 if reprove is enabled and Selected is non-empty.
@@ -656,7 +1357,7 @@ cnselect:maybe_request_cn_domain_reprove(C, N, Domain, Selected, Reasons) :-
           Candidates0),
   sort(Candidates0, Candidates),
   Candidates \== [],
-  throw(prover_reprove(cn_domain(C, N, Domain, Candidates, Reasons))).
+  request_reprove(cn_domain(C, N, Domain, Candidates, Reasons)).
 cnselect:maybe_request_cn_domain_reprove(_C, _N, _Domain, _Selected, _Reasons) :-
   true.
 
@@ -695,8 +1396,8 @@ cnselect:selected_cn_unique_or_reprove(C, N, _SelectedNew, SelectedMerged, Const
   Conflicting \== [],
   ( Conflicting = [selected(_,_,_,_,SM0)|_],
     selected_cn_slot_key_(SM0, Slot) -> true ; Slot = any ),
-  prover:learn(cn_domain(C,N,Slot), Domain, _),
-  ( Slot \== any -> prover:learn(cn_domain(C,N,any), Domain, _) ; true ),
+  learn_cn_domain(C, N, Slot, Domain, _),
+  ( Slot \== any -> learn_cn_domain(C, N, any, Domain, _) ; true ),
   maybe_request_cn_domain_reprove(C, N, none, Conflicting, [unique_conflict_with_domain]),
   fail.
 cnselect:selected_cn_unique_or_reprove(C, N, _SelectedNew, _SelectedMerged, Constraints) :-
@@ -708,7 +1409,7 @@ cnselect:selected_cn_unique_or_reprove(C, N, _SelectedNew, _SelectedMerged, Cons
   find_adjustable_origin(Reasons, OriginC, OriginN, OriginRepo://OriginEntry),
   query:search(version(OriginVer), OriginRepo://OriginEntry),
   ExcludeDomain = version_domain(any, [bound(smaller, OriginVer)]),
-  prover:learn(cn_domain(OriginC, OriginN, any), ExcludeDomain, Added),
+  learn_cn_domain(OriginC, OriginN, any, ExcludeDomain, Added),
   Added == true,
   maybe_request_cn_domain_reprove(OriginC, OriginN, none, [OriginRepo://OriginEntry], [inconsistency_driven]),
   fail.
@@ -734,7 +1435,7 @@ cnselect:selected_cn_unique_or_reprove(C, N, SelectedNew, SelectedMerged, Constr
   selected_cn_partition_by_domain(Domain, SlotSelected, Allowed, Conflicting),
   Allowed \== [],
   Conflicting \== [],
-  prover:learn(cn_domain(C, N, Slot), Domain, _),
+  learn_cn_domain(C, N, Slot, Domain, _),
   fail.
 % A same-slot clash with no cn_domain to partition on. Tilde pins never
 % enter the per-dep domain (dep_bound_op drops them) but, once
@@ -762,7 +1463,7 @@ cnselect:selected_cn_unique_or_reprove(C, N, SelectedNew, SelectedMerged, Constr
   selected_cn_partition_by_domain(Domain, SlotSelected, Allowed, Conflicting),
   Allowed \== [],
   Conflicting \== [],
-  prover:learn(cn_domain(C,N,Slot), Domain, _),
+  learn_cn_domain(C, N, Slot, Domain, _),
   fail.
 cnselect:selected_cn_unique_or_reprove(_C, _N, _SelectedNew, _SelectedMerged, _Constraints) :-
   fail.
@@ -954,7 +1655,7 @@ cnselect:maybe_learn_wildcard_domain(C, N, PackageDeps, Context) :-
   child_reselection_possible(C, N, PackageDeps, Context),
   wildcard_upper_bound_domain(C, N, PackageDeps, Domain),
   dep_slot_key(PackageDeps, Slot),
-  prover:learn(cn_domain(C, N, Slot), Domain, Added),
+  learn_cn_domain(C, N, Slot, Domain, Added),
   Added == true,
   throw(prover_reprove(cn_domain(C, N, none, [], [wildcard_domain_learning]))).
 cnselect:maybe_learn_wildcard_domain(_, _, _, _) :- fail.
@@ -1153,7 +1854,15 @@ cnselect:maybe_learn_parent_narrowing(C, N, PackageDeps, Context) :-
   % so the bounded reprove loop cannot spin on the same parent.
   \+ cn_domain_candidate_rejected(ParentC, ParentN, none, ParentRepo://ParentEntry),
   cn_domain_reprove_enabled,
-  throw(prover_reprove(cn_domain(ParentC, ParentN, none, [ParentRepo://ParentEntry], [parent_narrowing]))).
+  \+ entry_conceded(ParentC, ParentN, ParentRepo://ParentEntry),
+  % Remember which dependency the parent is narrowed for, so that a
+  % climb that stalls can be undone as a whole (concede_conflict/1).
+  ( memo:cn_narrowed_for_(ParentC, ParentN, ParentRepo://ParentEntry, C, N, _) ->
+      true
+  ; pass_learned(Learned),
+    assertz(memo:cn_narrowed_for_(ParentC, ParentN, ParentRepo://ParentEntry, C, N, Learned))
+  ),
+  request_reprove(cn_domain(ParentC, ParentN, none, [ParentRepo://ParentEntry], [parent_narrowing])).
 
 
 %! cnselect:entry_is_root_target(+RepoEntry) is semidet.
@@ -1241,7 +1950,7 @@ cnselect:selected_cn_not_blocked_or_reprove(C, N, _Specs, _Selected, Constraints
   cn_domain_reprove_enabled,
   blocked_cn_source_reprove_target(C, N, Constraints, SourceC, SourceN, Candidates),
   Candidates \== [],
-  throw(prover_reprove(cn_domain(SourceC, SourceN, none, Candidates, []))).
+  request_reprove(cn_domain(SourceC, SourceN, none, Candidates, [])).
 cnselect:selected_cn_not_blocked_or_reprove(_C, _N, _Specs, _Selected, _Constraints) :-
   fail.
 
@@ -1270,8 +1979,8 @@ cnselect:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constr
   ; ( \+ version_domain:domain_inconsistent(Domain) ->
         ( ( Selected = [selected(_,_,_,_,SM0)|_],
             selected_cn_slot_key_(SM0, SelSlot) -> true ; SelSlot = any ),
-          prover:learn(cn_domain(C,N,SelSlot), Domain, _),
-          ( SelSlot \== any -> prover:learn(cn_domain(C,N,any), Domain, _) ; true )
+          learn_cn_domain(C, N, SelSlot, Domain, _),
+          ( SelSlot \== any -> learn_cn_domain(C, N, any, Domain, _) ; true )
         -> true ; true )
     ; record_slot_conflict_if_multiple(C, N, Selected),
       ( get_assoc(cn_domain_reason(C,N), Constraints, ordset(Reasons0)) -> true ; Reasons0 = [] ),
@@ -1279,7 +1988,7 @@ cnselect:selected_cn_domain_compatible_or_reprove(C, N, Domain, Selected, Constr
         find_adjustable_origin(Reasons0, OriginC, OriginN, OriginRepo://OriginEntry),
         query:search(version(OriginVer), OriginRepo://OriginEntry),
         ExcludeDomain = version_domain(any, [bound(smaller, OriginVer)]),
-        prover:learn(cn_domain(OriginC, OriginN, any), ExcludeDomain, OriginAdded),
+        learn_cn_domain(OriginC, OriginN, any, ExcludeDomain, OriginAdded),
         OriginAdded == true
       ->
         maybe_request_cn_domain_reprove(OriginC, OriginN, none, [OriginRepo://OriginEntry], [inconsistency_driven]),

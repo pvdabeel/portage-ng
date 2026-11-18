@@ -116,6 +116,29 @@ assumption:assumption_type(naf(_),                                             n
 assumption:assumption_type(_,                                                  other).
 
 
+%! assumption:assumption_polarity(+Type, -Polarity) is det.
+%
+% Polarity of a domain assumption of the given assumption_type/2:
+%
+%   - `positive`: the plan is satisfiable once the user changes the
+%     configuration, and the assumption says what to change (unmask,
+%     accept a keyword, resolve a blocker).
+%   - `benign`: a cycle the prover or the rules broke.
+%   - `negative`: everything else. No configuration change resolves it;
+%     the request cannot be satisfied as stated.
+
+assumption:assumption_polarity(masked,                      positive) :- !.
+assumption:assumption_polarity(masked_dependency,           positive) :- !.
+assumption:assumption_polarity(keyword_filtered_dependency, positive) :- !.
+assumption:assumption_polarity(blocker_assumption,          positive) :- !.
+assumption:assumption_polarity(cycle_break,                 benign) :- !.
+assumption:assumption_polarity(use_requirement_cycle,       benign) :- !.
+assumption:assumption_polarity(use_conditional_cycle,       benign) :- !.
+assumption:assumption_polarity(dependency_group_cycle,      benign) :- !.
+assumption:assumption_polarity(naf_cycle,                   benign) :- !.
+assumption:assumption_polarity(_,                           negative).
+
+
 %! assumption:assumption_reason_from_term(+Term, -Reason)
 %
 % Extract the assumption_reason/1 tag from Term's context (if present).

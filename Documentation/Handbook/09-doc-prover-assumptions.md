@@ -231,8 +231,8 @@ Each throws `prover_reprove(cn_domain(C, N, RejectDomain, Candidates, Reasons))`
 ### Handling Reprove
 
 When `prove_with_retries` catches a `prover_reprove(Info)` exception,
-it delegates to `heuristic:handle_reprove/2`, which proceeds in three
-steps:
+it delegates to `heuristic:handle_reprove/2`.  The exchange proceeds in
+four steps:
 
 1. **Record what went wrong.**  The handler extracts the conflicting
    category, name, domain, and candidate list from `Info` and adds
@@ -245,21 +245,253 @@ steps:
    `reprove_max_retries`, the handler restarts the proof from scratch
    by calling `prove_with_retries` with an incremented attempt
    counter.  The learned rejects carry over, so the prover will not
-   repeat the same conflict.
+   repeat the same conflict.  A wildcard domain learned by
+   `maybe_learn_wildcard_domain` counts as new information: it has no
+   candidate to reject, the narrowed learned domain is the progress.
 
-3. **Give up gracefully.**  If nothing new was learned, or the retry
-   budget is exhausted, the handler calls `reprove_exhausted`, which
-   **clears** the reject set so the final attempt runs unbiased.  It
-   then invokes `prove_once` with reprove **disabled** — no further
+3. **Concede a conflict that has no solution.**  If nothing new was
+   learned, the same conflict would come back on every attempt.  The
+   prover offers it to `heuristic:reprove_concede/1`, which concedes
+   the package the conflict is about (`cnselect:concede_conflict/1`):
+   its conflicts are no longer raised, so the next attempt records the
+   conflict as an assumption and goes on repairing the conflicts about
+   every other package.  This costs one attempt.  See
+   *Conceding a conflict* below.
+
+4. **Give up gracefully.**  If the conflict cannot be conceded (it was
+   conceded before, or it names no package), or the retry budget is
+   exhausted, the handler calls `reprove_exhausted`, which **clears**
+   the reject set so the final attempt runs unbiased.  It then invokes
+   `prove_once` with reprove **disabled** — no further
    `prover_reprove` exceptions can be thrown, so the proof completes
    with assumptions where necessary.
+
+### Conceding a conflict
+
+Some conflicts have no solution in the tree.  `app-text/pandoc-2.18-r2`
+needs `<dev-haskell/aeson-2.1`; the only such `aeson` needs
+`<dev-haskell/primitive-0.8`, and it also needs `dev-haskell/scientific`,
+whose only version needs `>=dev-haskell/primitive-0.9`.  Parent
+narrowing answers such a conflict by climbing: it rejects `scientific`,
+then every `aeson` (none is left without `scientific`), then the
+consumers of `aeson`, until it reaches a package that has no other
+version to offer — the root target at the latest.  There the reject
+changes nothing and the loop stalls.
+
+Before conceding existed, a stall ended the loop: the final pass ran
+with reprove disabled, and every conflict it was the first to meet
+became an assumption as well.  `pandoc-2.18-r2` was reported with
+conflicts on `ghc`, `text`, `tls`, `vector`, `zlib` and `data-default`
+that rejecting one candidate repairs.
+
+`cnselect:concede_conflict/1` instead undoes the stalled climb and
+nothing else:
+
+- The stalled package and every package the climb went through
+  (`memo:cn_narrowed_for_/6` records which entry each parent-narrowing
+  reject was made of, and for which dependency) are marked conceded
+  (`memo:cn_domain_conceded_/3`).  `cnselect:request_reprove/1` raises
+  no conflict about a conceded package.
+- Their rejects are dropped, so the next attempt selects them again
+  and records the one dependency the climb started from as the
+  assumption.
+- Their learned `cn_domain` constraints go back to what they were at
+  the start of the pass in which the climb took its first step
+  (`prover:learned_snapshot/2`, `prover:learned_restore/2`).  The climb
+  selected versions the plan does not end up with, and a domain learned
+  under such a version would otherwise stay with nothing left to
+  correct it.  What was learned in earlier passes is kept.  That one
+  pass serves every package of the climb (`cnselect:climb_before/4`):
+  a domain can be learned for a package before any narrowing names it.
+  Taking each package back to the pass in which a narrowing first
+  named it was measured and rejected: no target better, one worse
+  (`dev-haskell/criterion-1.5.11.0`, 6 to 8 `unsatisfied_constraints`
+  entries), and `dev-haskell/statistics-0.15.2.0` took three times the
+  inferences for the same plan.
+- Nothing more is learned for a conceded package
+  (`cnselect:learn_cn_domain/5`), and it takes no further rejects.
+
+Re-rejecting a candidate that a wider reject key already covers is not
+reported as progress (`cnselect:add_cn_domain_rejects/5`), so a stall
+is recognised on the attempt it happens.
+
+Two things keep a concession to what stalled:
+
+- **Slots.**  A package with candidates in several slots is conceded
+  one slot at a time, when the stalled conflict is about one slot
+  (`cnselect:conflict_slot/4`: the slot its domain is scoped to, the
+  slot its candidates share, or the slot a dependency without any
+  candidate asks for).  `sys-devel/clang-crossdev-wrappers-16` depends
+  on `llvm-core/clang:16`, which the tree no longer has; that says
+  nothing about the other clang slots, whose conflicts are still
+  repaired.  A package with one slot is always conceded as a whole.
+  The packages below the stalled one in a climb are conceded as a
+  whole too: the narrowing record does not say which slot was asked
+  for.
+- **Settled narrowing.**  A stall that names a domain asks for a
+  version in that domain.  A version of the stalled package outside it
+  (or outside the conceded slot) could not have served the consumer
+  that is stuck, so an earlier narrowing that rejected such a version
+  is not a step of this climb (`cnselect:stalled_record/3`): the
+  version stays rejected, the dependency it was rejected for is not
+  conceded, and its pass does not count as the start of the climb.  A
+  stall that names no domain gives nothing to tell the narrowings
+  apart by, and all of them are followed.  Following only the
+  narrowing of the candidates such a stall names was measured and
+  rejected: 4 targets worse, 1 mixed, none better
+  (`kde-frameworks/ktexteditor-6.29.0` from no NEGATIVE assumptions to
+  39).
+
+Both are neutral on today's tree: no plan changes.  Four packages with
+several slots are conceded tree-wide (`llvm-core/clang`,
+`llvm-core/lld`, `llvm-runtimes/clang-runtime`,
+`media-video/ffmpeg-chromium`, nine concessions), and none of the 49
+stalls that name a domain has a narrowing outside it.
+
+Tree-wide (33,749 ebuilds, `resolver:test_stats`) conceding removed 221
+NEGATIVE `unsatisfied_constraints` assumptions and 15 `issue_with_model`
+assumptions; 44 targets improved, 12 of them to a plan without NEGATIVE
+assumptions, none got worse, for 1.3% more inferences.
+
+### Alternative proofs
+
+Conceding limits what one unsolvable conflict costs, but the loop never
+reconsiders which side of a conflict it kept.  The first conflict about
+a package learns the narrower domain and rejects the candidate that was
+selected; every later step builds on that.  When the target has no
+clean solution, that first choice decides how many dependencies end up
+assumed.  `dev-haskell/xml-hamlet-0.5.0.1` needs `<dev-lang/ghc-9.1`.
+The bound was learned, `ghc-9.8.4` was rejected, and the plan reported
+twelve dependencies of other packages that no `ghc-9.0` world
+satisfies.  Giving up the one `<ghc-9.1` instead leaves two
+assumptions (install and run of that one dependency), which is also
+what `emerge` reports as the conflict.
+
+Only a complete proof shows the whole price of a decision, so this is
+decided after the loop, by comparing complete proofs
+(`prover:prove_best/10`):
+
+1. The retry loop produces its proof as before.
+2. If a conflict was conceded and the proof has at least two
+   different conflicts, `heuristic:reprove_alternatives/4` names
+   packages to hold to another candidate
+   (`cnselect:overrule_alternatives/3`).  Conflicts are counted, not
+   assumption entries (`heuristic:proof_conflicts/2`): an assumed
+   dependency is one conflict per consumer and package, however many
+   entries list it (install and run, several proof contexts), and
+   every other domain assumption that is not a blocker record is one
+   by itself.  A proof with one conflict is left alone: the other side
+   of a single conflict costs one conflict as well (`pandoc-2.18-r2`
+   above).
+3. For each alternative, `cnselect:overrule_begin/3` empties the
+   rejects, concessions and the learned store — all of it answered the
+   candidate now given up — and holds the package to the named
+   candidate (`memo:cn_overruled_/3`).  The package is conceded, so a
+   dependency that candidate does not satisfy becomes an assumption
+   instead of a conflict.  The retry loop then runs again from the
+   original inputs.
+4. The alternative's proof is kept when it is strictly cheaper
+   (`heuristic:proof_cost/2`, see *What a proof costs* below).  The
+   search then continues from the kept proof, so a second
+   change of mind can build on the first: with what the kept proof
+   gives rise to, followed by the alternatives named earlier and not
+   tried yet (`heuristic:reprove_alternatives/4`).  Otherwise the hold
+   is withdrawn, and with it the concession and the exact-version pin
+   it came with (`heuristic:alternative_end/2`,
+   `cnselect:overrule_drop/2`).
+
+The retry loop's own proof is committed to before the first alternative
+is proven.  A loop that ran out of retries ends inside
+`prover:with_reprove_disabled/1`, and that scope only closes when the
+choicepoints of its pass are dropped; without the commit every
+alternative would run with reprove disabled, one pass each and no
+conflict repaired.
+
+Two readings of a completed proof name a package and a candidate:
+
+- **Majority.**  The package was conceded, as a whole or in one slot,
+  and another candidate satisfies more of the dependencies the proof
+  has on it than the selected one.  `dev-ml/ppx_bench-0.17.0-r1` goes from thirteen
+  assumptions to two this way: what is left is the one
+  `<dev-ml/ppxlib-0.36.0` (install and run) that the candidate most
+  consumers accept, `ppxlib-0.39.0`, does not satisfy.
+- **Reversal.**  The package has a learned domain, and a consumer was
+  narrowed for it or it was conceded.  The candidate is the best-ranked
+  one the domain
+  excludes, which is what a proof without that domain selects.  The
+  dependencies in the proof say little here, because its packages were
+  selected to fit the learned domain; that is why this reading does
+  not count them and relies on the comparison of the two proofs.
+  `xml-hamlet-0.5.0.1` above is repaired by this reading.
+
+A package whose candidates span several slots and the package of a
+root target are never overruled.
+
+**What a proof costs.**  `heuristic:proof_cost/2` returns
+`cost(Negative, Positive, Blockers, Benign, Entries)`, compared left to
+right, smaller is cheaper:
+
+| Component | Counts |
+| :-------- | :----- |
+| `Negative` | different conflicts among the NEGATIVE domain assumptions (`assumption:assumption_polarity/2`) |
+| `Positive` | different conflicts among the POSITIVE ones (unmask, accept a keyword) |
+| `Blockers` | blocker records that hit something in the plan (`annotation:effective_blockers/2`) |
+| `Benign` | cycles: the prover's cycle breaks and the domain's |
+| `Entries` | domain assumptions as the proof lists them, blocker records aside |
+
+A conflict is a consumer and the package it depends on.  The proof can
+list one conflict several times: once per phase (install, run), once
+per grouped dependency, and once more for every proof context the
+consumer was proven under.  `dev-ml/ppx_let-0.17.0-r2` lists
+`<dev-lang/ocaml-5.3`, required by `ppxlib-0.33.0-r2`, five times.
+Conflicts therefore come before entries; counting entries first chose
+two conflicts in four entries over one conflict in six
+(`dev-ml/ppxlib_jane-0.17.2-r2`).  NEGATIVE comes first, so an
+alternative never trades something the user can configure away for
+something that cannot be satisfied.  The soft blockers a proof merely
+walks past are counted nowhere.
+
+**What an alternative may spend.**  The alternatives of one prove share
+one retry budget, `reprove_max_retries`: each takes what it used, and
+one that runs out takes all of it.  Later alternatives then get a
+single pass, which is enough for one that meets no conflict
+(`xml-hamlet-0.5.0.1`: holding `cabal` exhausts the budget, holding
+`ghc` is then proven in one pass).  An alternative that runs out is
+abandoned rather than finished with reprove disabled
+(`prover:prove_alternative/8`): that pass turns every conflict it
+meets into an assumption, so its proof says little about the
+alternative.  `kde-plasma/plasma-meta-6.7.5` has two alternatives that
+each exhausted a full budget and gained nothing; sharing the budget
+took it from 278M to 193M inferences (114M without alternatives).
+
+An error (`error(_, _)`) inside an alternative is reported once
+(`Ignored error in alternative proof: ...`) and costs that alternative
+only; the proof of the retry loop is there to return.  The time limit,
+`request_exit(_)` and an abort are not errors of the alternative and
+pass through, after the alternative's hold has been withdrawn like
+that of any alternative that is not kept.
+
+`config:reprove_max_alternatives/1` (default 2) bounds the number of
+alternative proofs per prove; 0 switches the search off.  Only a
+strictly cheaper proof replaces the loop's own, so the number of
+NEGATIVE conflicts cannot go up.  Tree-wide (33,749 ebuilds,
+`resolver:test_stats`) the search removed 143 NEGATIVE
+`unsatisfied_constraints` entries; 20 targets improved for 0.8% more
+inferences.  One target lists more entries than before for fewer
+conflicts (`ppxlib_jane-0.17.2-r2`: six entries for one conflict,
+where the loop's proof had five for two).  None of the targets became
+installable: their conflicts are real, and the plan now reports the
+conflict rather than its consequences.
 
 ### Learned Constraint Store
 
 The `prover:learn/3` and `prover:learned/2` predicates maintain a
 key-value store that **persists across reprove retries** within the same
 top-level `prove/10` invocation.  This is distinct from the reject set
-(which accumulates and is cleared on exhaustion).
+(which accumulates and is cleared on exhaustion).  A constraint leaves
+the store in one case only: conceding a stalled climb puts the learned
+domains of the conceded packages back to an earlier snapshot (see
+*Conceding a conflict* above).
 
 The domain uses learned constraints for:
 
@@ -281,14 +513,23 @@ The domain uses learned constraints for:
 ### Retry Budget
 
 `reprove_max_retries` defaults to 20 (configurable via
-`config:reprove_max_retries/1`).  The final attempt runs with reprove
-disabled so the proof can complete with assumptions if necessary.
+`config:reprove_max_retries/1`).  A conceded conflict uses one attempt
+of this budget.  The final attempt runs with reprove disabled so the
+proof can complete with assumptions if necessary.
 Before it runs, `heuristic:reprove_exhausted/0` clears the reject map
 (including the parent-narrowing rejects) so the final pass starts from
 a clean candidate set; only the learned constraint store survives.
 Keeping the parent-narrowing rejects alive across exhaustion was
 measured tree-wide and rejected: it fixed 3 targets but added NEGATIVE
 assumptions in 48 and changed them in 75 more.
+
+A target that asks for an old version of a package set which the tree
+has since moved on from (`kde-plasma/plasma-meta-6.7.5` next to the
+6.8.2 set) moves one package per attempt and can still run out of
+budget; the conflicts left at that point are reported as assumptions.
+
+The alternative proofs that follow the loop share one more budget of
+the same size between them (see *Alternative proofs* above).
 
 ## Use model violation flow
 

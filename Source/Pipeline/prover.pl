@@ -46,9 +46,24 @@ Key design points:
   which records *no-goods* (rejected candidates) to avoid repeating
   the same choice, and then restarts the proof from scratch.  This
   bounded learn-and-restart loop runs up to `reprove_max_retries`
-  times.  If retries are exhausted, a final attempt runs with
-  reprove disabled so the proof can complete (possibly with
-  assumptions).
+  times.  A conflict the domain learns nothing new from is offered to
+  `heuristic:reprove_concede(Info)`: the domain stops raising that one
+  conflict, which then completes as an assumption, and the loop goes
+  on repairing the others.  If retries are exhausted, or the domain
+  cannot concede, a final attempt runs with reprove disabled so the
+  proof can complete (possibly with assumptions).
+
+- Alternative proofs: the loop above never revisits a decision it
+  learned from, and for a target without a clean solution the side of
+  a conflict it happened to keep decides how many assumptions the
+  proof ends with.  When the loop's proof has assumptions, the domain
+  may name alternatives (`heuristic:reprove_alternatives/4`).  For
+  each, up to `reprove_max_alternatives`, the domain changes its state
+  (`heuristic:alternative_begin/1`), the loop runs again from the
+  original inputs with a full retry budget, and the cheapest complete
+  proof by `heuristic:proof_cost/2` is the result
+  (`prover:prove_best/10`).  An alternative is kept only when it is
+  strictly cheaper, so a proof never gets worse by it.
 
 - Learned constraints: a key-value store (`prover:learn/3`,
   `prover:learned/2`) persists constraint information *across*
@@ -56,7 +71,10 @@ Key design points:
   uses this to carry narrowed version domains, exclusion sets, or
   other refinements from one attempt to the next, guiding candidate
   selection towards a conflict-free proof.  The store is reset at
-  the boundary of each top-level `prover:prove/10` invocation.
+  the boundary of each top-level `prover:prove/10` invocation.  A
+  domain that gives up on a line of refinement can take what it
+  learned on the way back out (`prover:learned_snapshot/2`,
+  `prover:learned_restore/2`).
 
 - Cycle detection and cycle-break assumptions: during depth-first
   proof search, a per-proof *cycle stack* tracks literals currently
@@ -183,11 +201,210 @@ prover:prove(Rules, Target, InProof, OutProof, InModel, OutModel, InCons, OutCon
   prover:with_rule_module(Rules,
     prover:with_root_goals(Target,
       prover:with_reprove_state(
-        prover:prove_with_retries(
-          Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, 0, MaxRetries
+        prover:prove_best(
+          Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, MaxRetries
         )
       )
     )
+  ).
+
+
+%! prover:prove_best(+Target, +InProof, -OutProof, +InModel, -OutModel, +InCons, -OutCons, +InTriggers, -OutTriggers, +MaxRetries) is semidet
+%
+% Runs the bounded retry loop (prover:prove_with_retries/11) and, when
+% the domain offers alternatives for its proof
+% (`heuristic:reprove_alternatives/4`), proves those as well. The
+% result is the cheapest proof found (prover:proof_cost/2); an earlier
+% proof wins a tie.
+%
+% The retry loop repairs one conflict at a time and never revisits a
+% decision that learned something. When the target has no clean
+% solution, which side of the first conflict was kept decides how many
+% dependencies end up assumed. An alternative is the domain's way of
+% asking for the other side: it changes its state
+% (`heuristic:alternative_begin/1`), the retry loop runs again from the
+% original inputs with a full retry budget, and the two complete proofs
+% are compared. Only a complete proof shows the whole price of a
+% decision, so this cannot be done inside the loop.
+%
+% Once there are alternatives to prove, the proof of the retry loop is
+% committed to: the cut drops the choicepoints prover:prove_once/9
+% leaves behind. Without it a loop that ended in its final pass would
+% still be inside prover:with_reprove_disabled/1 (a cleanup runs when
+% its goal has no choicepoints left), and every alternative would run
+% with reprove disabled: one pass each, no conflict repaired
+% (dev-ml/ppx_diff-0.17.0-r2 ended with 15 assumptions instead of 2).
+% Without alternatives the proof is returned as the loop left it.
+
+prover:prove_best(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, MaxRetries) :-
+  prover:prove_with_retries(Target, InProof, Proof1, InModel, Model1, InCons, Cons1, InTriggers, Trig1, 0, MaxRetries),
+  prover:reprove_max_alternatives(Left),
+  ( Left > 0,
+    prover:alternatives(Proof1, Cons1, [], Alternatives),
+    Alternatives \== []
+  ->
+    !,
+    prover:proof_cost(Proof1, Cost1),
+    prover:prove_alternatives(Alternatives, Left, Target, InProof, InModel, InCons, InTriggers, MaxRetries,
+                              best(Cost1, Proof1, Model1, Cons1, Trig1),
+                              best(_, OutProof, OutModel, OutCons, OutTriggers))
+  ; OutProof = Proof1, OutModel = Model1, OutCons = Cons1, OutTriggers = Trig1
+  ).
+
+
+%! prover:prove_alternatives(+Alternatives, +Left, +Target, +InProof, +InModel, +InCons, +InTriggers, +Retries, +Best0, -Best) is det
+%
+% Proves Target under the domain's Alternatives, at most Left of them,
+% and keeps the cheapest result. Best0 and Best are
+% best(Cost, Proof, Model, Constraints, Triggers).
+%
+% Each alternative is entered through `heuristic:alternative_begin/1`
+% (which may decline it by failing) and left through
+% `heuristic:alternative_end/2`, which is told whether its proof was
+% kept. A proof is kept when it is strictly cheaper than the best so
+% far; the search then goes on with what the domain offers for that
+% proof, so one change of mind can build on another. The domain is
+% handed the alternatives not tried yet and decides which of them still
+% stand; it ends the search by offering nothing. An alternative that
+% yields no proof (prover:prove_alternative/8) or one that is not
+% cheaper is dropped and the next alternative is tried.
+%
+% An alternative that is cut short by something other than an error of
+% its own (the time limit, `request_exit(_)`, an abort) ends the search:
+% the domain is told that the alternative was not kept, so that what it
+% changed for it is withdrawn, and only then is the ball thrown on.
+%
+% Retries is the retry budget the alternatives share: each proof takes
+% what it used from it, and one that runs out takes all of it. Later
+% alternatives then get a single pass, which is enough for one that
+% meets no conflict. The alternatives of a prove therefore cost at most
+% one more run of the retry loop plus one pass each
+% (kde-plasma/plasma-meta-6.7.5 has two that each exhaust a full
+% budget and gain nothing).
+
+prover:prove_alternatives([], _Left, _Target, _InProof, _InModel, _InCons, _InTriggers, _Retries, Best, Best) :-
+  !.
+prover:prove_alternatives(_Alternatives, Left, _Target, _InProof, _InModel, _InCons, _InTriggers, _Retries, Best, Best) :-
+  Left =< 0,
+  !.
+prover:prove_alternatives([Info|Rest], Left, Target, InProof, InModel, InCons, InTriggers, Retries, Best0, Best) :-
+  Best0 = best(Cost0, _, _, _, _),
+  ( heuristic:alternative_begin(Info) ->
+      Left1 is Left - 1,
+      prover:prove_alternative(Target, InProof, InModel, InCons, InTriggers, Retries, Result, Used),
+      Retries1 is max(0, Retries - Used),
+      ( Result = abort(Ball) ->
+          % Time limit, request_exit and the like: withdraw the hold
+          % before the ball leaves this alternative (heuristic:
+          % alternative_end/2), then pass it on.
+          heuristic:alternative_end(Info, false),
+          throw(Ball)
+      ; Result = proof(Proof, Model, Cons, Trig),
+        prover:proof_cost(Proof, Cost),
+        Cost @< Cost0
+      ->
+        Best1 = best(Cost, Proof, Model, Cons, Trig),
+        prover:alternatives(Proof, Cons, Rest, Next),
+        heuristic:alternative_end(Info, true)
+      ; Best1 = Best0,
+        Next = Rest,
+        heuristic:alternative_end(Info, false)
+      )
+  ; Left1 = Left,
+    Retries1 = Retries,
+    Best1 = Best0,
+    Next = Rest
+  ),
+  prover:prove_alternatives(Next, Left1, Target, InProof, InModel, InCons, InTriggers, Retries1, Best1, Best).
+
+
+%! prover:prove_alternative(+Target, +InProof, +InModel, +InCons, +InTriggers, +Retries, -Result, -Used) is det
+%
+% The retry loop for one alternative, with Retries as its budget.
+% Result is proof(Proof, Model, Constraints, Triggers), or `none` when
+% there is no proof to compare; Used is the number of retries taken.
+%
+% There is no proof when the proof fails, when the loop runs out of
+% retries, and when it throws an error:
+%
+%   - An alternative gets no final reprove-disabled pass
+%     (prover:handle_reprove/12 throws `prover_alternative_exhausted`
+%     instead). That pass turns every conflict it meets into an
+%     assumption, so its proof says little about the alternative, and
+%     without conflict repair it can take very long. Used is then all
+%     of Retries.
+%   - An error (`error(_, _)`) is reported once and costs the
+%     alternative, not the prove: the proof of the retry loop is there
+%     to return. Everything else that is thrown is not an error of the
+%     alternative: Result is `abort(Ball)` so prove_alternatives/10 can
+%     withdraw the hold (`heuristic:alternative_end/2`) before the ball
+%     leaves (the time limit, `request_exit(_)`, an abort).
+
+prover:prove_alternative(Target, InProof, InModel, InCons, InTriggers, Retries, Result, Used) :-
+  nb_setval(prover_alternative_proof, true),
+  nb_setval(prover_retries_used, 0),
+  catch(
+    ( prover:prove_with_retries(Target, InProof, Proof, InModel, Model, InCons, Cons, InTriggers, Trig, 0, Retries) ->
+        Result0 = proof(Proof, Model, Cons, Trig)
+    ; Result0 = none
+    ),
+    Thrown,
+    Result0 = thrown(Thrown)
+  ),
+  nb_setval(prover_alternative_proof, false),
+  nb_getval(prover_retries_used, Used0),
+  ( Result0 = thrown(Ball) ->
+      ( Ball == prover_alternative_exhausted ->
+          Result = none,
+          Used = Retries
+      ; Ball = error(_, _) ->
+          Result = none,
+          Used = Used0,
+          message:catch_log_report('alternative proof', Ball)
+      ; Result = abort(Ball),
+        Used = Used0
+      )
+  ; Result = Result0,
+    Used = Used0
+  ).
+
+
+%! prover:note_retry(+Attempt) is det
+%
+% Records the number of the retry that is about to start, for the
+% budget the alternatives share (prover:prove_alternative/8).
+
+prover:note_retry(Attempt) :-
+  nb_setval(prover_retries_used, Attempt).
+
+
+%! prover:alternatives(+Proof, +Constraints, +Untried, -Alternatives) is det
+%
+% Alternatives is what the domain offers as alternatives to a completed
+% Proof with its Constraints (`heuristic:reprove_alternatives/4`), in
+% the order they are to be tried; [] without the hook. Untried are the
+% alternatives offered for an earlier proof that were not proven yet.
+
+prover:alternatives(Proof, Constraints, Untried, Alternatives) :-
+  ( hook:defined(heuristic:reprove_alternatives/4),
+    heuristic:reprove_alternatives(Proof, Constraints, Untried, Alternatives0)
+  ->
+    Alternatives = Alternatives0
+  ; Alternatives = []
+  ).
+
+
+%! prover:proof_cost(+Proof, -Cost) is det
+%
+% Cost is what the domain charges for Proof (`heuristic:proof_cost/2`):
+% any term, compared by the standard order of terms, smaller is
+% cheaper. Without the hook it is the number of domain assumptions in
+% Proof.
+
+prover:proof_cost(Proof, Cost) :-
+  ( hook:defined(heuristic:proof_cost/2) ->
+      heuristic:proof_cost(Proof, Cost)
+  ; aggregate_all(count, gen_assoc(rule(assumed(_)), Proof, _), Cost)
   ).
 
 
@@ -295,6 +512,7 @@ prover:reprove_from_completed(Target, InProof, OutProof, InModel, OutModel, InCo
     Added == true
   ->
     Attempt1 is Attempt + 1,
+    prover:note_retry(Attempt1),
     ( prover:partial_restart_state(Info, Proof1, Model1, Cons1, Trig1, RProof, RModel, RCons, RTrig, ResumeLits) ->
         flag(prover_partial_restarts, PR, PR + 1),
         prover:resume_target(ResumeLits, Target, ResumeTarget),
@@ -341,18 +559,39 @@ prover:reprove_from_completed(Target, InProof, OutProof, InModel, OutModel, InCo
 prover:handle_reprove(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers,
                       Attempt, MaxRetries, Info) :-
   ( Attempt < MaxRetries,
-    hook:defined(heuristic:handle_reprove/2),
-    heuristic:handle_reprove(Info, Added),
-    Added == true
+    prover:reprove_progress(Info)
   ->
     Attempt1 is Attempt + 1,
+    prover:note_retry(Attempt1),
     prover:prove_with_retries(
       Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers, Attempt1, MaxRetries
     )
+  ; nb_current(prover_alternative_proof, true) ->
+    throw(prover_alternative_exhausted)
   ; ( hook:defined(heuristic:reprove_exhausted/0) -> heuristic:reprove_exhausted ; true ),
     prover:with_reprove_disabled(
       prover:prove_once(Target, InProof, OutProof, InModel, OutModel, InCons, OutCons, InTriggers, OutTriggers)
     )
+  ).
+
+
+%! prover:reprove_progress(+Info) is semidet
+%
+% True when another attempt can be expected to differ from the one that
+% threw Info. Either the domain learned from the conflict
+% (`heuristic:handle_reprove/2` answers `true`), or it learned nothing
+% and concedes this one conflict (`heuristic:reprove_concede/1`): the
+% next attempt then records it as an assumption and goes on repairing
+% the others. A conflict that has no solution therefore costs one
+% attempt, not the repair of every conflict found after it.
+
+prover:reprove_progress(Info) :-
+  hook:defined(heuristic:handle_reprove/2),
+  heuristic:handle_reprove(Info, Added),
+  ( Added == true ->
+      true
+  ; hook:defined(heuristic:reprove_concede/1),
+    heuristic:reprove_concede(Info)
   ).
 
 
@@ -429,6 +668,21 @@ prover:mark_resume_pass :-
   nb_setval(prover_resume_pass, true).
 
 
+%! prover:reprove_max_alternatives(-Max) is det
+%
+% Maximum number of alternative proofs per prove (default 0: none).
+
+prover:reprove_max_alternatives(Max) :-
+  ( hook:defined(config:reprove_max_alternatives/1),
+    config:reprove_max_alternatives(Max0),
+    integer(Max0),
+    Max0 >= 0
+  ->
+    Max = Max0
+  ; Max = 0
+  ).
+
+
 %! prover:reprove_max_retries(-Max) is det
 %
 % Maximum number of reprove retries (default 3).
@@ -452,13 +706,18 @@ prover:reprove_max_retries(Max) :-
 
 prover:with_reprove_state(Goal) :-
   ( nb_current(prover_learned_constraints, SavedAVL) -> true ; empty_assoc(SavedAVL) ),
+  ( nb_current(prover_alternative_proof, SavedAlternative) -> true ; SavedAlternative = false ),
+  ( nb_current(prover_retries_used, SavedRetries) -> true ; SavedRetries = 0 ),
   empty_assoc(EmptyAVL),
   nb_setval(prover_learned_constraints, EmptyAVL),
+  nb_setval(prover_alternative_proof, false),
   ( hook:defined(heuristic:init_state/0) -> heuristic:init_state ; true ),
   setup_call_cleanup(true,
                      Goal,
                      ( ( hook:defined(heuristic:cleanup_state/0) -> heuristic:cleanup_state ; true ),
-                       nb_setval(prover_learned_constraints, SavedAVL)
+                       nb_setval(prover_learned_constraints, SavedAVL),
+                       nb_setval(prover_alternative_proof, SavedAlternative),
+                       nb_setval(prover_retries_used, SavedRetries)
                      )).
 
 
@@ -1410,7 +1669,9 @@ prover:select_new_literals_to_enqueue_([L0|Ls], Model, Proof0, Proof, Acc0, Acc)
 %  A generic key-value store for constraints learned across proof attempts.
 %  Rules can learn constraints (e.g., version domain narrowing) and consult
 %  them during candidate selection. The prover manages the store lifecycle.
-%  Merge semantics are defined by feature_unification:val_hook.
+%  Merge semantics are defined by feature_unification:val_hook. Learning
+%  only narrows; learned_snapshot/2 and learned_restore/2 let a rule set
+%  go back to an earlier state for the literals it names.
 
 
 %! prover:learned(+Literal, -Constraint)
@@ -1453,6 +1714,50 @@ prover:learn(Literal, Constraint, Added) :-
   ; true
   ),
   !.
+
+
+%! prover:learned_snapshot(+Pattern, -Snapshot)
+%
+%  Snapshot is the ordered list of Literal-Constraint pairs of the
+%  learned constraints whose literal unifies with Pattern (Pattern is
+%  not bound). Hand it to prover:learned_restore/2 to go back to it.
+
+prover:learned_snapshot(Pattern, Snapshot) :-
+  ( nb_current(prover_learned_constraints, AVL) -> true ; empty_assoc(AVL) ),
+  assoc_to_list(AVL, Pairs),
+  include(prover:learned_pair_matches(Pattern), Pairs, Snapshot).
+
+
+%! prover:learned_restore(+Pattern, +Snapshot)
+%
+%  Put the learned constraints whose literal unifies with Pattern back
+%  to what Snapshot (prover:learned_snapshot/2) holds for them: one that
+%  was learned or narrowed since is dropped or widened again. Learned
+%  constraints that do not match Pattern are left alone. For a rule set
+%  that gives up on a line of refinement and wants the constraints it
+%  learned on the way out of the store. Always succeeds.
+
+prover:learned_restore(Pattern, Snapshot) :-
+  ( nb_current(prover_learned_constraints, AVL0) -> true ; empty_assoc(AVL0) ),
+  assoc_to_list(AVL0, Pairs0),
+  exclude(prover:learned_pair_matches(Pattern), Pairs0, Kept),
+  include(prover:learned_pair_matches(Pattern), Snapshot, Back),
+  append(Kept, Back, Pairs1),
+  sort(1, @<, Pairs1, Pairs),
+  ( Pairs == Pairs0 ->
+      true
+  ; ord_list_to_assoc(Pairs, AVL),
+    nb_setval(prover_learned_constraints, AVL),
+    choicelog:clog_emit(learn, recorded, learned_restore(Pattern, Back))
+  ).
+
+
+%! prover:learned_pair_matches(+Pattern, +Pair)
+%
+%  True when the literal of the learned-store Pair unifies with Pattern.
+
+prover:learned_pair_matches(Pattern, Literal-_Constraint) :-
+  \+ Literal \= Pattern.
 
 
 % -----------------------------------------------------------------------------

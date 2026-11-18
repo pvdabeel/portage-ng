@@ -266,6 +266,80 @@ reject-map mechanism that deliberately does NOT use it:
    `ranking:choice_criteria` `snap_admits` is the ranking-side
    counterpart (arm bounds vs the selected candidate).
 
+7. **Conceding a conflict that has no solution**
+   (`heuristic:reprove_concede/1`, `cnselect:concede_cn/2`): when
+   `heuristic:handle_reprove/2` learns nothing new from a conflict
+   (typically a parent-narrowing climb that reached the root target),
+   the prover does NOT fall back to the final reprove-disabled pass.
+   The stalled (C,N) and every package the climb went through
+   (`memo:cn_narrowed_for_/5`) are conceded: their conflicts are no
+   longer raised (`cnselect:request_reprove/1`), their rejects are
+   dropped, their learned cn_domains go back to the start of the pass
+   in which the climb began (`prover:learned_snapshot/2`,
+   `prover:learned_restore/2`), and nothing more is learned or rejected
+   for them (`cnselect:learn_cn_domain/5` — learn every cn_domain
+   through it, never `prover:learn/3` directly). The loop then goes on
+   repairing every other conflict; a concession costs one attempt.
+   app-text/pandoc-2.18-r2 (aeson-2.0.3.0 `<primitive-0.8` vs the only
+   scientific `>=primitive-0.9`) reports that one conflict instead of
+   seven. Two rules keep the loop honest: re-rejecting a candidate a
+   wider reject key already covers is not progress
+   (`cnselect:add_cn_domain_rejects/5`), and a learned wildcard domain
+   IS progress (`handle_reprove` answers `true` for
+   `wildcard_domain_learning`; answering `false` would concede the
+   package and discard the domain just learned). Tree-wide A/B: 44
+   targets better, 0 worse, -221 `unsatisfied_constraints`, +1.3%
+   inferences. Variants measured and rejected: keeping the learned
+   domains at concession (stale domain pins the package:
+   hspec-wai-0.10.1, kauth-6.29.0), dropping all of them
+   (pandoc-lua-engine-0.2.1.2), restoring without blocking later
+   learning (kauth-6.29.0 re-learns `=kconfig-6.31*`), restoring each
+   package from the pass in which a narrowing first named it instead
+   of all from the climb's first pass (`cnselect:climb_before/4`; a
+   domain can be learned for a package before any narrowing names it:
+   criterion-1.5.11.0 6 -> 8, 0 targets better).
+
+8. **Alternative proofs** (`prover:prove_best/10`,
+   `heuristic:reprove_alternatives/4`, `cnselect:overrule_alternatives/3`):
+   the retry loop never reconsiders which side of a conflict it kept,
+   and for a target without a clean solution that side decides how
+   many dependencies are assumed. After the loop, when a conflict was
+   conceded and the proof has at least two different conflicts
+   (`heuristic:proof_conflicts/2`: an assumed dependency counts once
+   per consumer and package, however many entries list it; every other
+   non-blocker domain assumption counts by itself), the domain names
+   packages to hold to another candidate (`memo:cn_overruled_/3`): the
+   candidate most dependencies in the proof accept (package conceded
+   as a whole or in one slot), or the best-ranked one a learned domain
+   excludes (package a consumer was narrowed for, or conceded). Each
+   alternative starts from an empty reject map and learned store
+   (`cnselect:overrule_begin/3`), runs the retry loop again with a full
+   budget, and is kept only when it is strictly cheaper
+   (`heuristic:proof_cost/2`: different NEGATIVE conflicts, then
+   POSITIVE ones, effective blockers, cycles, entries), so the number
+   of NEGATIVE conflicts cannot go up. An alternative that is not kept,
+   or that is cut short by the time limit or `request_exit(_)`, has its
+   hold, concession and pin withdrawn (`heuristic:alternative_end/2`,
+   `cnselect:overrule_drop/2`) before anything else happens. A kept
+   alternative is followed by what its proof gives
+   rise to, then by the untried earlier ones. `prove_best` commits to
+   the loop's proof (cut) before proving alternatives: a loop that ran
+   out of retries is otherwise still inside `with_reprove_disabled`
+   and every alternative runs unrepaired (ppx_diff 15 instead of 2).
+   At most `config:reprove_max_alternatives/1` (2) per
+   prove; an alternative that exhausts its retries is abandoned, it
+   gets no final reprove-disabled pass (that pass hung pandoc-2.18-r2
+   in `prover:dedup_triggers`). dev-haskell/xml-hamlet-0.5.0.1 reports
+   the one `<ghc-9.1` instead of twelve dependencies of a ghc-9.0
+   world. Tree-wide A/B: 20 targets better, -143
+   `unsatisfied_constraints` entries, +0.8% inferences; one target
+   lists more entries for fewer conflicts (ppxlib_jane-0.17.2-r2: six
+   entries for one conflict, where the loop's proof had five for
+   two). Do not decide this
+   inside the retry loop by counting consumers: the versions selected
+   under the wrong side bias the count (measured: ppx_bench 13 -> 9
+   instead of 2, xml-hamlet unchanged).
+
 Self-dep handling:
 - `is_self_dep/5` detects bootstrap self-deps (same C/N/slot as parent).
 - Cross-slot self-deps (same C/N, different slot) are regular dependencies.

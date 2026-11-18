@@ -420,6 +420,24 @@ config:proving_target(run).
 config:reprove_max_retries(20).
 
 
+%! config:reprove_max_alternatives(?Count)
+%
+% Maximum number of alternative proofs per prove (prover:prove_best/10).
+%
+% When the retry loop above ends with a proof that has at least two
+% different conflicts (heuristic:proof_conflicts/2: an assumed
+% dependency counts once per consumer and package, not once per
+% assumption) and a conflict was conceded on the way, the resolver may
+% hold a package to another candidate and prove the target again from
+% the start, with a full retry budget, to see whether that side of the
+% conflict leaves fewer assumptions (heuristic:reprove_alternatives/4).
+% The cheaper proof is kept. Each alternative costs up to one more run
+% of the retry loop, and only targets without a clean solution pay it.
+% 0 switches the search off.
+
+config:reprove_max_alternatives(2).
+
+
 %! config:avoid_reinstall(?Bool)
 %
 % If a package is already installed, when this config item is set to true,

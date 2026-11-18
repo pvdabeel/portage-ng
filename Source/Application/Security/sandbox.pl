@@ -67,6 +67,7 @@ sandbox:safe_primitive(console:printing_tty_size(_,_)).
 sandbox:safe_primitive(console:powerline_bubbles).
 sandbox:safe_primitive(config:proving_target(_)).
 sandbox:safe_primitive(config:reprove_max_retries(_)).
+sandbox:safe_primitive(config:reprove_max_alternatives(_)).
 sandbox:safe_primitive(config:server_port(_)).
 sandbox:safe_primitive(config:server_bind(_)).
 sandbox:safe_primitive(config:server_host(_)).

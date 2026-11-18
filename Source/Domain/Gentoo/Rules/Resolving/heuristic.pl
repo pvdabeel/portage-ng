@@ -22,8 +22,24 @@ and obligation filtering.
   * heuristic:handle_reprove(+Info, -Added)
     Called when a prover_reprove(Info) exception is caught.
 
+  * heuristic:reprove_concede(+Info)
+    Called when a caught conflict made no progress: concedes that one
+    conflict so the retry loop goes on repairing the others.
+
   * heuristic:reprove_exhausted/0
     Called when reprove retries are exhausted.
+
+  * heuristic:reprove_alternatives(+Proof, +Constraints, +Untried, -Alternatives)
+    Called for a completed proof: the changes of mind worth another
+    complete proof (hold a package to another candidate).
+
+  * heuristic:alternative_begin(+Info), heuristic:alternative_end(+Info, +Kept)
+    Called around the proof of one alternative.
+
+  * heuristic:proof_cost(+Proof, -Cost)
+    What the prover compares alternative proofs by: the different
+    conflicts among the NEGATIVE, then the POSITIVE domain assumptions,
+    then effective blockers, cycles and the number of entries.
 
   * heuristic:init_state/0
     Save domain state at the start of a reprove-enabled proof.
@@ -156,6 +172,15 @@ heuristic:obligation_candidate(Literal) :-
 % Process a reprove conflict. Delegates domain conflict processing
 % to cnselect:add_cn_domain_rejects/5 and cnselect:add_cn_domain_origin_rejects/2.
 
+heuristic:handle_reprove(cn_domain(C, N, none, [], [wildcard_domain_learning]), true) :-
+  % cnselect:maybe_learn_wildcard_domain/4 raises this only after
+  % prover:learn/3 reported that the learned domain of (C,N) narrowed.
+  % That is the progress: there is no candidate to reject. Reported as
+  % `false` it ended the reprove loop on the first wildcard learned, and
+  % with conceding (heuristic:reprove_concede/1) it would concede (C,N)
+  % and discard the domain that was just learned.
+  choicelog:clog_emit(reprove, recorded, reprove(cn_domain(C, N, none, [], [wildcard_domain_learning]))),
+  !.
 heuristic:handle_reprove(cn_domain(C, N, Domain, Candidates, Reasons), Added) :-
   cnselect:add_cn_domain_rejects(C, N, Domain, Candidates, AddedDomain),
   ( Candidates == [] ->
@@ -204,6 +229,215 @@ heuristic:reprove_pending(bwu_force_flush(Pending)) :-
   use:deferred_use_pending(Pending).
 
 
+%! heuristic:reprove_concede(+Info) is semidet
+%
+% Domain hook called by the prover when a thrown conflict made no
+% progress (heuristic:handle_reprove/2 answered `false`) while retry
+% budget remains. Concedes the conflicts about the (C,N) the stalled
+% conflict names, or about the one slot of it the conflict is about
+% (cnselect:concede_conflict/1), and succeeds, so the prover spends one
+% more attempt in which that conflict surfaces as an assumption while
+% the conflicts about every other package are still repaired. Fails
+% when they were conceded before, or for a conflict that names no
+% package; the prover then runs its final reprove-disabled pass.
+%
+% Without this step one conflict that has no solution switched conflict
+% repair off for the whole proof: every conflict the final pass was the
+% first to meet became an assumption, although rejecting a candidate
+% would have repaired it. app-text/pandoc-2.18-r2 has one such conflict
+% in the tree (aeson-2.0.3.0 needs <primitive-0.8, the only scientific
+% needs >=primitive-0.9) and was reported with six more on ghc, text,
+% tls, vector, zlib and data-default, all of which have a solution.
+
+heuristic:reprove_concede(cn_domain(C, N, Domain, Candidates, Reasons)) :-
+  cnselect:concede_conflict(cn_domain(C, N, Domain, Candidates, Reasons)),
+  choicelog:clog_emit(reprove, recorded, concede(C, N)),
+  !.
+
+
+%! heuristic:reprove_alternatives(+Proof, +Constraints, +Untried, -Alternatives) is det
+%
+% Domain hook called by the prover for a completed Proof with its
+% Constraints (prover:prove_best/10): the proof of its retry loop, and
+% every alternative proof it keeps. Alternatives are the changes of
+% mind worth another complete proof, in the order to try them. The one
+% kind there is holds a package to another candidate
+% (cnselect:overrule_alternatives/3).
+%
+% Untried are the alternatives offered for an earlier proof that the
+% prover has not proven yet ([] for the proof of the retry loop). They
+% follow what Proof itself gives rise to, unless their package is
+% overruled by now or offered again. They are kept because a kept
+% alternative starts from an empty learned store and without
+% concessions, which is what the alternatives are read from: its proof
+% may name nothing where the earlier one did (dev-ml/ppx_diff-0.17.0-r2:
+% ocaml and ppxlib are offered, the proof that holds ocaml offers
+% nothing, and holding ppxlib as well takes 15 assumptions to 2).
+%
+% [] unless a conflict of the retry loop was conceded and Proof has at
+% least two different conflicts (heuristic:proof_conflicts/2: one per
+% consumer and package for an assumed grouped dependency, not one per
+% assumption line). A target without a clean solution has at least
+% one, and the other side of a single conflict costs a single
+% assumption as well (app-text/pandoc-2.18-r2: aeson-2.0.3.0 needs
+% `<primitive-0.8`, the only scientific needs `>=primitive-0.9`; either
+% can be the one reported).
+
+heuristic:reprove_alternatives(Proof, Constraints, Untried, Alternatives) :-
+  ( once(memo:cn_domain_conceded_(_, _, _)),
+    heuristic:proof_conflicts(Proof, Conflicts),
+    Conflicts >= 2
+  ->
+    cnselect:overrule_alternatives(Proof, Constraints, Offered),
+    exclude(heuristic:alternative_superseded(Offered), Untried, Standing),
+    append(Offered, Standing, Alternatives)
+  ; Alternatives = []
+  ).
+
+
+%! heuristic:alternative_superseded(+Offered, +Info) is semidet
+%
+% The untried alternative Info is about a package that is overruled by
+% now, or that the Offered alternatives name again.
+
+heuristic:alternative_superseded(Offered, overrule(C, N, _)) :-
+  ( memo:cn_overruled_(C, N, _) -> true
+  ; memberchk(overrule(C, N, _), Offered)
+  ).
+
+
+%! heuristic:alternative_begin(+Info) is semidet
+%
+% Domain hook: switch the domain state to the alternative Info before
+% the prover proves it. Fails when the alternative does not apply any
+% more.
+
+heuristic:alternative_begin(overrule(C, N, Candidate)) :-
+  cnselect:overrule_begin(C, N, Candidate),
+  choicelog:clog_emit(reprove, recorded, alternative(overrule(C, N, Candidate))).
+
+
+%! heuristic:alternative_end(+Info, +Kept) is det
+%
+% Domain hook: the proof of the alternative Info is finished. Kept is
+% `true` when it became the prover's best proof; otherwise the change
+% of mind is withdrawn so that later alternatives do not build on it
+% (cnselect:overrule_drop/2). Always called once begin succeeded, also
+% when the alternative aborts (time limit, request_exit).
+
+heuristic:alternative_end(overrule(C, N, Candidate), Kept) :-
+  ( Kept == true -> true ; cnselect:overrule_drop(C, N) ),
+  choicelog:clog_emit(reprove, recorded, alternative_end(overrule(C, N, Candidate), Kept)),
+  !.
+
+
+%! heuristic:proof_cost(+Proof, -Cost) is det
+%
+% Domain hook: what the prover compares alternative proofs by. Cost is
+% cost(Negative, Positive, Blockers, Benign, Entries), compared left to
+% right by the standard order of terms, smaller is cheaper:
+%
+%   - Negative: the different conflicts (heuristic:assumption_conflict/2)
+%     among the NEGATIVE domain assumptions, the ones no configuration
+%     change resolves (assumption:assumption_polarity/2).
+%   - Positive: the different conflicts among the POSITIVE ones (unmask,
+%     accept a keyword).
+%   - Blockers: the blocker records that hit something in the plan
+%     (annotation:effective_blockers/2). The soft blockers a proof
+%     merely walks past are not counted anywhere.
+%   - Benign: cycles, both the prover's cycle breaks and the domain's.
+%   - Entries: the domain assumptions as the proof lists them, blocker
+%     records aside.
+%
+% Conflicts come before entries because one conflict can be listed
+% several times: once per phase (install, run), once per grouped
+% dependency of the consumer on the package, and once more for every
+% proof context the consumer was proven under (a literal proven again
+% with a wider `?{Context}` list leaves its earlier assumptions in the
+% proof). dev-ml/ppx_let-0.17.0-r2 lists `<ocaml-5.3` required by
+% ppxlib-0.33.0-r2 five times. Counting entries first preferred a proof
+% with two conflicts in four entries over one with one conflict in six
+% (dev-ml/ppxlib_jane-0.17.2-r2).
+%
+% Negative comes first so that an alternative never trades something
+% the user can configure away for something that cannot be satisfied.
+
+heuristic:proof_cost(Proof, cost(Negative, Positive, Blockers, Benign, Entries)) :-
+  findall(Polarity-Conflict,
+          ( gen_assoc(rule(assumed(Content)), Proof, _),
+            \+ heuristic:blocker_assumption(Content),
+            heuristic:assumption_conflict(Content, Conflict),
+            heuristic:assumption_polarity(Content, Polarity)
+          ),
+          Tagged),
+  length(Tagged, Entries),
+  sort(Tagged, Distinct),
+  aggregate_all(count, member(negative-_, Distinct), Negative),
+  aggregate_all(count, member(positive-_, Distinct), Positive),
+  aggregate_all(count, member(benign-_, Distinct), BenignDomain),
+  aggregate_all(count, gen_assoc(assumed(rule(_)), Proof, _), CycleBreaks),
+  Benign is BenignDomain + CycleBreaks,
+  annotation:effective_blockers(Proof, Effective),
+  length(Effective, Blockers).
+
+
+%! heuristic:assumption_polarity(+Content, -Polarity) is det
+%
+% Polarity (`negative`, `positive`, `benign`) of the domain assumption
+% Content, by its classification in assumption.pl.
+
+heuristic:assumption_polarity(Content, Polarity) :-
+  assumption:assumption_type(Content, Type),
+  assumption:assumption_polarity(Type, Polarity),
+  !.
+
+
+%! heuristic:proof_conflicts(+Proof, -Count) is det
+%
+% Count is the number of different conflicts Proof assumes: a grouped
+% dependency counts once per consumer and package, however many of its
+% phases (install, run) are assumed; every other domain assumption that
+% is not a blocker record counts by itself.
+
+heuristic:proof_conflicts(Proof, Count) :-
+  findall(Conflict,
+          ( gen_assoc(rule(assumed(Content)), Proof, _),
+            \+ heuristic:blocker_assumption(Content),
+            heuristic:assumption_conflict(Content, Conflict)
+          ),
+          Conflicts0),
+  sort(Conflicts0, Conflicts),
+  length(Conflicts, Count).
+
+
+%! heuristic:assumption_conflict(+Content, -Conflict) is det.
+%
+% Conflict identifies what the domain assumption Content is about: the
+% consumer and the package for an assumed grouped dependency (with
+% `self/1` when the proof context has it, else the package alone so
+% install and run of the same dependency still count as one), Content
+% itself otherwise.
+
+heuristic:assumption_conflict(grouped_package_dependency(C, N, _):_?{Ctx}, dependency(Self, C, N)) :-
+  is_list(Ctx),
+  memberchk(self(Self), Ctx),
+  !.
+heuristic:assumption_conflict(grouped_package_dependency(C, N, _):_?{_}, dependency(C, N)) :-
+  !.
+heuristic:assumption_conflict(grouped_package_dependency(C, N, _):_, dependency(C, N)) :-
+  !.
+heuristic:assumption_conflict(Content, other(Content)).
+
+
+%! heuristic:blocker_assumption(+Content) is semidet.
+%
+% Content, the argument of a domain-assumption proof key, is a blocker
+% record, with or without its `?{Context}`.
+
+heuristic:blocker_assumption(blocker(_, _, _, _, _, _, _)?{_}) :- !.
+heuristic:blocker_assumption(blocker(_, _, _, _, _, _, _)).
+
+
 %! heuristic:reprove_exhausted
 %
 % Called when reprove retries are exhausted. Clears the reject
@@ -227,7 +461,15 @@ init_state :-
       retractall(memo:cn_domain_reject_(_, _))
   ; SavedRejects = []
   ),
-  nb_setval(rules_reprove_saved_state, state(OldEnabled, SavedSnapshots, SavedRejects)),
+  findall(conceded(C, N, S), memo:cn_domain_conceded_(C, N, S), SavedConceded),
+  retractall(memo:cn_domain_conceded_(_, _, _)),
+  findall(narrowed(PC, PN, PE, C, N, L), memo:cn_narrowed_for_(PC, PN, PE, C, N, L), SavedNarrowed),
+  retractall(memo:cn_narrowed_for_(_, _, _, _, _, _)),
+  findall(overruled(C, N, E), memo:cn_overruled_(C, N, E), SavedOverruled),
+  retractall(memo:cn_overruled_(_, _, _)),
+  cnselect:pass_learned(SavedPassLearned),
+  nb_setval(rules_reprove_saved_state,
+            state(OldEnabled, SavedSnapshots, SavedRejects, SavedConceded, SavedNarrowed, SavedOverruled, SavedPassLearned)),
   nb_setval(prover_reprove_enabled, true),
   cnselect:clear_cn_snapshots,
   !.
@@ -238,11 +480,19 @@ init_state :-
 % Restore domain state saved by init_state/0.
 
 cleanup_state :-
-  ( nb_current(rules_reprove_saved_state, state(OldEnabled, SavedSnapshots, SavedRejects)) ->
+  ( nb_current(rules_reprove_saved_state,
+               state(OldEnabled, SavedSnapshots, SavedRejects, SavedConceded, SavedNarrowed, SavedOverruled, SavedPassLearned)) ->
       ( OldEnabled == '$absent' -> nb_delete(prover_reprove_enabled) ; nb_setval(prover_reprove_enabled, OldEnabled) ),
       retractall(memo:cn_domain_reject_(_, _)),
+      retractall(memo:cn_domain_conceded_(_, _, _)),
+      retractall(memo:cn_narrowed_for_(_, _, _, _, _, _)),
+      retractall(memo:cn_overruled_(_, _, _)),
       cnselect:restore_cn_snapshots(SavedSnapshots),
       forall(member(K-V, SavedRejects), assertz(memo:cn_domain_reject_(K, V))),
+      forall(member(conceded(C, N, S), SavedConceded), assertz(memo:cn_domain_conceded_(C, N, S))),
+      forall(member(narrowed(PC, PN, PE, C, N, L), SavedNarrowed), assertz(memo:cn_narrowed_for_(PC, PN, PE, C, N, L))),
+      forall(member(overruled(C, N, E), SavedOverruled), assertz(memo:cn_overruled_(C, N, E))),
+      nb_setval(rules_pass_learned, SavedPassLearned),
       nb_delete(rules_reprove_saved_state)
   ; true
   ),
@@ -270,11 +520,18 @@ cleanup_state :-
 % unsatisfied-constraint assumptions rather than the REQUIRED_USE
 % violations a full restart converges to, because the provider saw the
 % whole conflicting accumulation at once instead of progressively).
+%
+% Both kinds also record which cn_domain constraints are learned at this
+% point (cnselect:note_pass_learned/0): a parent-narrowing climb that
+% stalls is undone back to the start of the pass it began in
+% (cnselect:concede_conflict/1).
 
 heuristic:begin_pass(fresh) :-
-  use:clear_bwu_cross_dep_memos.
+  use:clear_bwu_cross_dep_memos,
+  cnselect:note_pass_learned.
 heuristic:begin_pass(resume) :-
-  use:clear_bwu_cross_dep_memos.
+  use:clear_bwu_cross_dep_memos,
+  cnselect:note_pass_learned.
 
 
 %! heuristic:restart_seed(+Info, +Core) is semidet

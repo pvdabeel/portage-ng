@@ -195,6 +195,35 @@ annotation:suggestion_tag(Ctx, R, E, usechange, use_change(R, E, C, N, Changes))
 %  Blocker note extraction
 % -----------------------------------------------------------------------------
 
+%! annotation:effective_blockers(+ProofAVL, -Effective) is det.
+%
+% Effective are the blocker domain assumptions of ProofAVL that hit
+% something (blocker_effective/2), as blk/9 terms: the ones collect/2
+% reports. For callers that need only this part of collect/2, such as
+% the comparison of alternative proofs (heuristic:proof_cost/2).
+
+annotation:effective_blockers(ProofAVL, Effective) :-
+  findall(blk(Content, Strength, Phase, C, N, O, V, SlotReq, Origin),
+          ( assoc:gen_assoc(rule(assumed(Content)), ProofAVL, _),
+            annotation:blocker_assumption_term(Content, Strength, Phase, C, N,
+                                               O, V, SlotReq, Origin)
+          ),
+          Blockers0),
+  ( Blockers0 == [] ->
+      Effective = []
+  ; sort(Blockers0, Blockers),
+    findall(planned(C, N, Action, R, E),
+            ( assoc:gen_assoc(rule(R://E:Action), ProofAVL, _),
+              memberchk(Action, [install, update, downgrade, reinstall, uninstall]),
+              cache:ordered_entry(R, E, C, N, _)
+            ),
+            Planned0),
+    sort(Planned0, Planned),
+    annotation:planned_index(Planned, PlannedIdx),
+    include(annotation:blocker_effective(PlannedIdx), Blockers, Effective)
+  ).
+
+
 %! annotation:blocker_assumption_term(+Content, -Strength, -Phase, -C, -N, -O, -V, -SlotReq, -Origin)
 %
 % Destructures a blocker domain assumption (with or without proof context)

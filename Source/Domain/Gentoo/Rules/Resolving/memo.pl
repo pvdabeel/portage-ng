@@ -25,6 +25,15 @@ Each thread-local predicate caches a different aspect of resolver state:
 | memo_blocked_cn_source_snap (nbstore) | Blocked CN sources (keyed by C-N)            |
 | memo_slot_meta_cache (nbstore)     | Slot metadata list per Repo-Id                  |
 | cn_domain_reject_/2               | Rejected candidates per CN-domain key           |
+| cn_domain_conceded_/3             | (C,N) pairs, as a whole or per slot, whose      |
+|                                    | conflicts stalled the reprove loop and are no   |
+|                                    | longer raised                                   |
+| cn_narrowed_for_/6                | Which entry of a (C,N) a parent-narrowing       |
+|                                    | reject was made of and for which dependency,    |
+|                                    | and the cn_domain constraints learned when that |
+|                                    | pass started                                    |
+| cn_overruled_/3                   | The one candidate a (C,N) is held to in an      |
+|                                    | alternative proof (cnselect:overrule_begin/3)   |
 | rdepend_vbounds_cache_/5           | Self-RDEPEND version bounds for a (C,N) pair    |
 | rdepend_vbounds_walked_/2          | Parents whose RDEPEND bounds are all cached     |
 | overlap_count_cache_/4             | Active `||` groups of a parent naming a (C,N)   |
@@ -97,6 +106,9 @@ within a variant scope they have the per-proof lifetime they always had.
 
 :- thread_local memo:effective_use_fact/3.      % effective_use_fact(Repo, Entry, EnabledUseSet)
 :- thread_local memo:cn_domain_reject_/2.       % cn_domain_reject_(Key, RejectedSet)
+:- thread_local memo:cn_domain_conceded_/3.     % cn_domain_conceded_(C, N, Scope) -- conflicts about (C,N) stalled the reprove loop; no longer raised, they surface as assumptions. Scope is `any` (the package as a whole) or one slot of a package with several
+:- thread_local memo:cn_narrowed_for_/6.        % cn_narrowed_for_(ParentC, ParentN, ParentRepoEntry, C, N, Learned) -- parent narrowing rejected ParentRepoEntry, an entry of (ParentC,ParentN), for its dependency on (C,N); Learned is the snapshot of the cn_domain constraints learned when that pass started
+:- thread_local memo:cn_overruled_/3.           % cn_overruled_(C, N, RepoEntry) -- an alternative proof holds (C,N) to RepoEntry: it is the only candidate of (C,N) until the alternative is dropped or the proof ends
 :- thread_local memo:rdepend_vbounds_cache_/5.  % rdepend_vbounds_cache_(Repo, Entry, C, N, ExtraDeps)
 :- thread_local memo:rdepend_vbounds_walked_/2. % rdepend_vbounds_walked_(Repo, Entry) -- every (C,N) of the entry's RDEPEND bounds is cached
 :- thread_local memo:overlap_count_cache_/4.    % overlap_count_cache_(Repo, Entry, C-N, Count) -- active || groups of the entry naming (C,N)
@@ -152,6 +164,9 @@ clear_proof_caches :-
   nbstore:reset(memo_slot_meta_cache),
   nbstore:reset(memo_bwu_seed_seen),
   retractall(memo:cn_domain_reject_(_, _)),
+  retractall(memo:cn_domain_conceded_(_, _, _)),
+  retractall(memo:cn_narrowed_for_(_, _, _, _, _, _)),
+  retractall(memo:cn_overruled_(_, _, _)),
   retractall(memo:keyword_cache_(_, _, _, _, _, _)),
   retractall(memo:assumption_reason_cache_(_, _, _, _)),
   retractall(memo:visibility_override_(_, _)),

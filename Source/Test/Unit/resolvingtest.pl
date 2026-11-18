@@ -1319,3 +1319,886 @@ tilde_pin_cleanup :-
   memo:clear_caches.
 
 :- end_tests(tilde_pin_domain).
+
+
+% -----------------------------------------------------------------------------
+%  Conceding a conflict that has no solution
+% -----------------------------------------------------------------------------
+
+% One conflict the reprove loop learns nothing new from used to end the
+% loop: the final pass ran with reprove disabled and every conflict it
+% was the first to meet became an assumption (app-text/pandoc-2.18-r2:
+% one conflict without a solution on dev-haskell/primitive, reported
+% with six others that rejecting a candidate repairs). The loop now
+% concedes that one conflict (heuristic:reprove_concede/1) and goes on.
+
+:- begin_tests(concede_conflict).
+
+test(rejecting_the_rejected_is_no_progress,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  Dom = version_domain(any, [bound(smaller, V2)]),
+  P1 = qtest://'cc/p-1',
+  P0 = qtest://'cc/p-0',
+  % Parent narrowing rejects under the global key.
+  cnselect:add_cn_domain_rejects(cc, p, none, [P1], true),
+  cnselect:add_cn_domain_rejects(cc, p, none, [P1], false),
+  % The same candidate under a narrower key changes no lookup.
+  cnselect:add_cn_domain_rejects(cc, p, Dom, [P1], false),
+  \+ ( memo:cn_domain_reject_(key(cc, p, _, KeyDom), _), KeyDom \== none ),
+  % A candidate that is news is recorded, the known one is not repeated.
+  cnselect:add_cn_domain_rejects(cc, p, Dom, [P0, P1], true),
+  cnselect:cn_domain_candidate_rejected(cc, p, Dom, P0),
+  \+ cnselect:cn_domain_candidate_rejected(cc, p, none, P0).
+
+test(concede_undoes_the_whole_climb,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  Dom = version_domain(any, [bound(smaller, V2)]),
+  % q needs p, p needs x, and no x fits: parent narrowing rejected p for
+  % x, then q for p. u was rejected for an unrelated conflict.
+  assertz(memo:cn_narrowed_for_(cc, p, qtest://'cc/p-1', cc, x, [])),
+  assertz(memo:cn_narrowed_for_(cc, q, qtest://'cc/q-1', cc, p, [])),
+  cnselect:add_cn_domain_rejects(cc, x, Dom, [qtest://'cc/x-3'], true),
+  cnselect:add_cn_domain_rejects(cc, p, none, [qtest://'cc/p-1'], true),
+  cnselect:add_cn_domain_rejects(cc, q, none, [qtest://'cc/q-1'], true),
+  cnselect:add_cn_domain_rejects(cc, u, none, [qtest://'cc/u-1'], true),
+  % The consumer of q has no other q: the conflict comes back unchanged.
+  Info = cn_domain(cc, q, Dom, [qtest://'cc/q-1'], []),
+  heuristic:handle_reprove(Info, false),
+  heuristic:reprove_concede(Info),
+  cnselect:cn_conceded(cc, q),
+  cnselect:cn_conceded(cc, p),
+  cnselect:cn_conceded(cc, x),
+  \+ cnselect:cn_conceded(cc, u),
+  % The climb's rejects are gone, the unrelated one stays.
+  \+ cnselect:cn_domain_candidate_rejected(cc, q, none, qtest://'cc/q-1'),
+  \+ cnselect:cn_domain_candidate_rejected(cc, p, none, qtest://'cc/p-1'),
+  \+ cnselect:cn_domain_candidate_rejected(cc, x, Dom, qtest://'cc/x-3'),
+  cnselect:cn_domain_candidate_rejected(cc, u, none, qtest://'cc/u-1'),
+  % Conceding twice is no progress: the prover falls back to its final pass.
+  \+ heuristic:reprove_concede(Info).
+
+test(concede_forgets_what_the_climb_learned,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  V3 = version([3], '', 4, 0, [], 0, '3'),
+  Below2 = version_domain(any, [bound(smaller, V2)]),
+  Below3 = version_domain(any, [bound(smaller, V3)]),
+  % Learned in an earlier pass: p below 3, and u below 3.
+  prover:learn(cn_domain(cc, p, any), Below3, true),
+  prover:learn(cn_domain(cc, u, any), Below3, true),
+  % The pass in which the climb starts: x is learned below 2 and p is
+  % narrowed for it. Under the p selected instead, p is learned below 2
+  % and q below 3.
+  cnselect:note_pass_learned,
+  prover:learn(cn_domain(cc, x, any), Below2, true),
+  cnselect:pass_learned(AtStart),
+  assertz(memo:cn_narrowed_for_(cc, p, qtest://'cc/p-1', cc, x, AtStart)),
+  prover:learn(cn_domain(cc, p, any), Below2, true),
+  prover:learn(cn_domain(cc, q, any), Below3, true),
+  % A later pass, with another snapshot: q is narrowed for p.
+  cnselect:note_pass_learned,
+  cnselect:pass_learned(Later),
+  Later \== AtStart,
+  assertz(memo:cn_narrowed_for_(cc, q, qtest://'cc/q-1', cc, p, Later)),
+  prover:learn(cn_domain(cc, u, any), Below2, true),
+  cnselect:concede_cn(cc, q),
+  % The climb's packages are back at the start of its first pass: the
+  % one snapshot serves all of them. x would stay learned with the
+  % snapshot of the narrowing that stalled. q would with a snapshot per
+  % package (no narrowing names q before the later pass), and what q
+  % learned in between it learned under a p the plan does not keep.
+  prover:learned_snapshot(cn_domain(cc, x, _), []),
+  prover:learned_snapshot(cn_domain(cc, q, _), []),
+  prover:learned(cn_domain(cc, p, any), LearnedP),
+  LearnedP == Below3,
+  % A package outside the climb keeps what it learned meanwhile.
+  prover:learned(cn_domain(cc, u, any), LearnedU),
+  LearnedU \== Below3.
+
+test(narrowing_outside_the_stalled_domain_is_settled,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  V3 = version([3], '', 4, 0, [], 0, '3'),
+  Below2 = version_domain(any, [bound(smaller, V2)]),
+  Below3 = version_domain(any, [bound(smaller, V3)]),
+  % An early pass: q-3 is rejected for its dependency on y, and q-1
+  % does without y. That narrowing did its work.
+  cnselect:note_pass_learned,
+  cnselect:pass_learned(Early),
+  assertz(memo:cn_narrowed_for_(cc, q, qtest://'cc/q-3', cc, y, Early)),
+  cnselect:add_cn_domain_rejects(cc, q, none, [qtest://'cc/q-3'], true),
+  % Later p is learned below 3, and then a climb starts: q-1 is
+  % rejected for p, p is learned below 2 on the way.
+  prover:learn(cn_domain(cc, p, any), Below3, true),
+  cnselect:note_pass_learned,
+  cnselect:pass_learned(Later),
+  assertz(memo:cn_narrowed_for_(cc, q, qtest://'cc/q-1', cc, p, Later)),
+  cnselect:add_cn_domain_rejects(cc, q, none, [qtest://'cc/q-1'], true),
+  prover:learn(cn_domain(cc, p, any), Below2, true),
+  % The consumer of q wants a q below 2 and there is none left.
+  heuristic:reprove_concede(cn_domain(cc, q, Below2, [qtest://'cc/q-1'], [])),
+  cnselect:cn_conceded(cc, q),
+  cnselect:cn_conceded(cc, p),
+  % q-3 could not have served that consumer: y is not conceded, q-3
+  % stays rejected, and the climb began in the later pass.
+  \+ cnselect:cn_conceded(cc, y),
+  cnselect:cn_domain_candidate_rejected(cc, q, none, qtest://'cc/q-3'),
+  \+ cnselect:cn_domain_candidate_rejected(cc, q, none, qtest://'cc/q-1'),
+  prover:learned(cn_domain(cc, p, any), LearnedP),
+  LearnedP == Below3.
+
+test(stall_without_a_domain_follows_every_narrowing,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  V3 = version([3], '', 4, 0, [], 0, '3'),
+  Below3 = version_domain(any, [bound(smaller, V3)]),
+  cnselect:note_pass_learned,
+  cnselect:pass_learned(Early),
+  assertz(memo:cn_narrowed_for_(cc, q, qtest://'cc/q-3', cc, y, Early)),
+  cnselect:add_cn_domain_rejects(cc, q, none, [qtest://'cc/q-3'], true),
+  prover:learn(cn_domain(cc, p, any), Below3, true),
+  cnselect:note_pass_learned,
+  cnselect:pass_learned(Later),
+  assertz(memo:cn_narrowed_for_(cc, q, qtest://'cc/q-1', cc, p, Later)),
+  cnselect:add_cn_domain_rejects(cc, q, none, [qtest://'cc/q-1'], true),
+  % Nothing says which version the consumer of q could have used: q ran
+  % out of candidates because of both rejects.
+  heuristic:reprove_concede(cn_domain(cc, q, none, [qtest://'cc/q-1'], [])),
+  cnselect:cn_conceded(cc, p),
+  cnselect:cn_conceded(cc, y),
+  \+ cnselect:cn_domain_candidate_rejected(cc, q, none, qtest://'cc/q-3'),
+  % The climb began with the narrowing for y: p is back at that pass.
+  prover:learned_snapshot(cn_domain(cc, p, _), []).
+
+test(concession_is_per_slot_for_a_package_with_several,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  V9 = version([9], '', 4, 0, [], 0, '9'),
+  Below9 = version_domain(any, [bound(smaller, V9)]),
+  M1 = qtest://'cc/m-1',
+  M2 = qtest://'cc/m-2',
+  version_domain:candidate_slot(M1, Slot1),
+  version_domain:candidate_slot(M2, Slot2),
+  Slot1 \== Slot2,
+  cnselect:add_cn_domain_rejects(cc, m, none, [M1, M2], true),
+  % A dependency on slot 1 of m that nothing satisfies.
+  Stall = cn_domain(cc, m, none, [], [introduced_by(qtest://'cc/q-1', run, slot([slot('1')]))]),
+  heuristic:reprove_concede(Stall),
+  cnselect:cn_conceded(cc, m, Slot1),
+  \+ cnselect:cn_conceded(cc, m, Slot2),
+  \+ cnselect:cn_conceded(cc, m),
+  % Only the candidates of that slot are eligible again.
+  \+ cnselect:cn_domain_candidate_rejected(cc, m, none, M1),
+  cnselect:cn_domain_candidate_rejected(cc, m, none, M2),
+  % Conflicts about slot 1 are not raised and reject nothing ...
+  \+ cnselect:request_reprove(Stall),
+  \+ cnselect:request_reprove(cn_domain(cc, m, none, [M1], [])),
+  cnselect:add_cn_domain_rejects(cc, m, none, [M1], false),
+  cnselect:learn_cn_domain(cc, m, Slot1, Below9, false),
+  % ... the other slot, and a conflict that spans slots, are repaired.
+  catch(( cnselect:request_reprove(cn_domain(cc, m, none, [M2], [])), fail ),
+        prover_reprove(_), true),
+  catch(( cnselect:request_reprove(cn_domain(cc, m, none, [M1, M2], [])), fail ),
+        prover_reprove(_), true),
+  cnselect:learn_cn_domain(cc, m, Slot2, Below9, true),
+  % The same stall again is no progress; one that names no slot
+  % concedes the package.
+  \+ heuristic:reprove_concede(Stall),
+  heuristic:reprove_concede(cn_domain(cc, m, none, [M1, M2], [])),
+  cnselect:cn_conceded(cc, m),
+  \+ cnselect:request_reprove(cn_domain(cc, m, none, [M2], [])).
+
+test(package_with_one_slot_is_conceded_as_a_whole,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  % The stall names candidates of one slot, and q has no other.
+  heuristic:reprove_concede(cn_domain(cc, q, none, [qtest://'cc/q-1'], [])),
+  cnselect:cn_conceded(cc, q),
+  % A later conflict about q that names no slot is not raised either.
+  \+ cnselect:request_reprove(cn_domain(cc, q, none, [], [])).
+
+test(climb_of_a_slot_follows_the_narrowing_in_that_slot,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  M1 = qtest://'cc/m-1',
+  M2 = qtest://'cc/m-2',
+  version_domain:candidate_slot(M1, Slot1),
+  version_domain:candidate_slot(M2, Slot2),
+  V9 = version([9], '', 4, 0, [], 0, '9'),
+  Below9 = version_domain(any, [bound(smaller, V9)]),
+  % m-2 was rejected for y, m-1 for p; the stall is about m-1.
+  assertz(memo:cn_narrowed_for_(cc, m, M2, cc, y, [])),
+  assertz(memo:cn_narrowed_for_(cc, m, M1, cc, p, [])),
+  cnselect:add_cn_domain_rejects(cc, m, none, [M1, M2], true),
+  prover:learn(cn_domain(cc, m, Slot1), Below9, true),
+  prover:learn(cn_domain(cc, m, Slot2), Below9, true),
+  heuristic:reprove_concede(cn_domain(cc, m, none, [M1], [])),
+  cnselect:cn_conceded(cc, m, Slot1),
+  cnselect:cn_conceded(cc, p),
+  \+ cnselect:cn_conceded(cc, y),
+  cnselect:cn_domain_candidate_rejected(cc, m, none, M2),
+  % What the climb learned for that slot is forgotten, the other slot
+  % keeps its domain.
+  \+ prover:learned(cn_domain(cc, m, Slot1), _),
+  prover:learned(cn_domain(cc, m, Slot2), Below9).
+
+test(conceded_package_learns_nothing,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  Below2 = version_domain(any, [bound(smaller, V2)]),
+  cnselect:concede_cn(cc, p),
+  cnselect:learn_cn_domain(cc, p, any, Below2, false),
+  prover:learned_snapshot(cn_domain(cc, p, _), []),
+  cnselect:learn_cn_domain(cc, u, any, Below2, true),
+  prover:learned(cn_domain(cc, u, any), Below2).
+
+test(stall_without_a_climb_keeps_the_learned_domain,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  Below2 = version_domain(any, [bound(smaller, V2)]),
+  prover:learn(cn_domain(cc, p, any), Below2, true),
+  cnselect:concede_cn(cc, p),
+  prover:learned(cn_domain(cc, p, any), Below2).
+
+test(conceded_conflict_is_not_raised,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  Sel = selected(qtest, 'cc/p-1', run, version([1], '', 4, 0, [], 0, '1'), [slot('0')]),
+  cnselect:concede_cn(cc, p),
+  % Conceded: fails like a caller with reprove disabled, no exception.
+  \+ cnselect:request_reprove(cn_domain(cc, p, none, [qtest://'cc/p-1'], [])),
+  cnselect:maybe_request_cn_domain_reprove(cc, p, none, [Sel], []),
+  % Every other package is still repaired.
+  catch(( cnselect:request_reprove(cn_domain(cc, u, none, [qtest://'cc/u-1'], [])),
+          fail ),
+        prover_reprove(cn_domain(cc, u, none, [qtest://'cc/u-1'], [])),
+        true).
+
+test(prover_spends_one_attempt_on_a_stall,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  Info = cn_domain(cc, q, none, [qtest://'cc/q-1'], []),
+  % Learned something: progress.
+  prover:reprove_progress(Info),
+  \+ cnselect:cn_conceded(cc, q),
+  % Learned nothing: conceded, still progress.
+  prover:reprove_progress(Info),
+  cnselect:cn_conceded(cc, q),
+  % Nothing left to learn or to concede.
+  \+ prover:reprove_progress(Info),
+  % A conflict that names no package cannot be conceded.
+  \+ prover:reprove_progress(some_other_conflict).
+
+test(learned_wildcard_domain_is_progress,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  % The wildcard learner throws only after the learned store changed;
+  % there is no candidate to reject and nothing to concede.
+  Info = cn_domain(cc, w, none, [], [wildcard_domain_learning]),
+  heuristic:handle_reprove(Info, true),
+  prover:reprove_progress(Info),
+  prover:reprove_progress(Info),
+  \+ cnselect:cn_conceded(cc, w).
+
+test(learned_snapshot_and_restore,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  V3 = version([3], '', 4, 0, [], 0, '3'),
+  Below2 = version_domain(any, [bound(smaller, V2)]),
+  Below3 = version_domain(any, [bound(smaller, V3)]),
+  prover:learned_snapshot(cn_domain(_, _, _), []),
+  prover:learn(cn_domain(cc, p, any), Below3, true),
+  prover:learn(other(cc, p), kept, true),
+  prover:learned_snapshot(cn_domain(_, _, _), Snapshot),
+  Snapshot == [cn_domain(cc, p, any)-Below3],
+  prover:learn(cn_domain(cc, p, any), Below2, true),
+  prover:learn(cn_domain(cc, p, '0'), Below2, true),
+  prover:learn(cn_domain(cc, u, any), Below2, true),
+  % Only what matches the pattern goes back; the pattern stays unbound.
+  Pattern = cn_domain(cc, p, Slot),
+  prover:learned_restore(Pattern, Snapshot),
+  var(Slot),
+  prover:learned(cn_domain(cc, p, any), RestoredP),
+  RestoredP == Below3,
+  \+ prover:learned(cn_domain(cc, p, '0'), _),
+  prover:learned(cn_domain(cc, u, any), Below2),
+  prover:learned(other(cc, p), kept),
+  % Restoring to an empty snapshot forgets.
+  prover:learned_restore(cn_domain(cc, u, _), []),
+  prover:learned_snapshot(cn_domain(cc, u, _), []),
+  prover:learned(cn_domain(cc, p, any), _).
+
+test(state_is_scoped_to_the_proof,
+     [setup(concede_setup),
+      cleanup(concede_cleanup)]) :-
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  Below2 = version_domain(any, [bound(smaller, V2)]),
+  cnselect:concede_cn(cc, p),
+  assertz(memo:cn_narrowed_for_(cc, q, qtest://'cc/q-1', cc, p, [])),
+  prover:learn(cn_domain(cc, u, any), Below2, true),
+  cnselect:note_pass_learned,
+  cnselect:pass_learned(OuterPass),
+  % A nested reprove-enabled proof starts without the outer concessions
+  % and gives them back when it ends.
+  heuristic:init_state,
+  \+ cnselect:cn_conceded(cc, p),
+  \+ memo:cn_narrowed_for_(_, _, _, _, _, _),
+  cnselect:concede_cn(cc, u),
+  nb_setval(rules_pass_learned, []),
+  heuristic:cleanup_state,
+  cnselect:cn_conceded(cc, p),
+  \+ cnselect:cn_conceded(cc, u),
+  memo:cn_narrowed_for_(cc, q, qtest://'cc/q-1', cc, p, []),
+  cnselect:pass_learned(Restored),
+  Restored == OuterPass,
+  OuterPass \== [].
+
+concede_setup :-
+  memo:clear_caches,
+  ( nb_current(prover_root_goals, _) -> nb_delete(prover_root_goals) ; true ),
+  ( nb_current(prover_learned_constraints, _) -> nb_delete(prover_learned_constraints) ; true ),
+  ( nb_current(rules_pass_learned, _) -> nb_delete(rules_pass_learned) ; true ),
+  % m has one version in each of two slots; the other packages have one
+  % slot.
+  forall(member(Name-Major-Slot, [p-1-'0', q-3-'0', q-1-'0', x-3-'0', u-1-'0', m-2-'2', m-1-'1']),
+         ( atom_number(Full, Major),
+           atomic_list_concat(['cc/', Name, '-', Full], Id),
+           assertz(cache:ordered_entry(qtest, Id, cc, Name, version([Major], '', 4, 0, [], 0, Full))),
+           assertz(cache:entry_metadata(qtest, Id, slot, slot(Slot)))
+         )).
+
+concede_cleanup :-
+  forall(cache:ordered_entry(qtest, Id, cc, _, _),
+         retractall(cache:entry_metadata(qtest, Id, _, _))),
+  retractall(cache:ordered_entry(qtest, _, cc, _, _)),
+  memo:clear_caches,
+  ( nb_current(prover_learned_constraints, _) -> nb_delete(prover_learned_constraints) ; true ),
+  ( nb_current(rules_pass_learned, _) -> nb_delete(rules_pass_learned) ; true ).
+
+:- end_tests(concede_conflict).
+
+
+% -----------------------------------------------------------------------------
+%  Alternative proofs: the other side of a conflict
+% -----------------------------------------------------------------------------
+
+% The retry loop never reconsiders which side of a conflict it kept, and
+% for a target without a clean solution that side decides how many
+% dependencies are assumed (dev-haskell/xml-hamlet-0.5.0.1: `<ghc-9.1`
+% was kept and twelve dependencies of other packages were assumed, where
+% giving up the one `<ghc-9.1` leaves two). After the loop the domain
+% names packages to hold to another candidate
+% (heuristic:reprove_alternatives/4), the prover proves the target again
+% for each and keeps the cheapest proof (prover:prove_best/10).
+
+:- begin_tests(alternative_proofs).
+
+test(cost_counts_assumptions_conflicts_count_dependencies,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  alternative_dep(smaller, 2, Below2),
+  Self = [self(qtest://'ap/a-1')],
+  list_to_assoc([rule(assumed(grouped_package_dependency(ap, p, [Below2]):install?{Self}))-(dep(0, [])?{[]}),
+                 rule(assumed(grouped_package_dependency(ap, p, [Below2]):run?{Self}))-(dep(0, [])?{[]}),
+                 rule(assumed(blocker(soft, run, ap, x, none, version_none, [])?{Self}))-(dep(0, [])?{[]}),
+                 rule(qtest://'ap/a-1':run)-(dep(0, [])?{[]})],
+                Proof),
+  % Install and run of one dependency are one conflict in two entries;
+  % a blocker record that hits nothing in the plan costs nothing.
+  heuristic:proof_cost(Proof, Cost),
+  Cost == cost(1, 0, 0, 0, 2),
+  heuristic:proof_conflicts(Proof, 1).
+
+test(dependency_without_self_is_one_conflict_in_every_phase,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  alternative_dep(smaller, 2, Below2),
+  % A proof context without self/1 does not say who the consumer is:
+  % install and run of the dependency are still one conflict.
+  list_to_assoc([rule(assumed(grouped_package_dependency(ap, p, [Below2]):install?{[]}))-(dep(0, [])?{[]}),
+                 rule(assumed(grouped_package_dependency(ap, p, [Below2]):run?{[]}))-(dep(0, [])?{[]})],
+                NoSelf),
+  heuristic:assumption_conflict(grouped_package_dependency(ap, p, [Below2]):install?{[]}, Install),
+  heuristic:assumption_conflict(grouped_package_dependency(ap, p, [Below2]):run?{[]}, Run),
+  Install == dependency(ap, p),
+  Run == Install,
+  heuristic:proof_conflicts(NoSelf, 1),
+  heuristic:proof_cost(NoSelf, CostNoSelf),
+  CostNoSelf == cost(1, 0, 0, 0, 2),
+  % A dependency on another package is another conflict, and so is the
+  % same dependency of a consumer that is known.
+  Self = [self(qtest://'ap/a-1')],
+  list_to_assoc([rule(assumed(grouped_package_dependency(ap, p, [Below2]):install?{[]}))-(dep(0, [])?{[]}),
+                 rule(assumed(grouped_package_dependency(ap, q, [Below2]):run?{[]}))-(dep(0, [])?{[]}),
+                 rule(assumed(grouped_package_dependency(ap, p, [Below2]):run?{Self}))-(dep(0, [])?{[]})],
+                Three),
+  heuristic:proof_conflicts(Three, 3).
+
+test(cost_orders_conflicts_before_entries_and_negative_before_positive,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  alternative_dep(smaller, 2, Below2),
+  alternative_dep(greaterequal, 2, From2),
+  A = [self(qtest://'ap/a-1')],
+  B = [self(qtest://'ap/b-1')],
+  Wide = [self(qtest://'ap/a-1'), build_with_use:use_state([x], [])],
+  Masked = [self(qtest://'ap/a-1'), assumption_reason(masked)],
+  % One conflict listed three times: two phases, and one phase again
+  % under a wider proof context.
+  list_to_assoc([rule(assumed(grouped_package_dependency(ap, p, [Below2]):install?{A}))-(dep(0, [])?{[]}),
+                 rule(assumed(grouped_package_dependency(ap, p, [Below2]):install?{Wide}))-(dep(0, [])?{[]}),
+                 rule(assumed(grouped_package_dependency(ap, p, [Below2]):run?{A}))-(dep(0, [])?{[]})],
+                OneInThree),
+  % Two conflicts listed once each.
+  list_to_assoc([rule(assumed(grouped_package_dependency(ap, p, [Below2]):install?{A}))-(dep(0, [])?{[]}),
+                 rule(assumed(grouped_package_dependency(ap, p, [From2]):install?{B}))-(dep(0, [])?{[]})],
+                TwoInTwo),
+  % Two masked dependencies, and a cycle break.
+  list_to_assoc([rule(assumed(grouped_package_dependency(ap, p, [Below2]):install?{Masked}))-(dep(0, [])?{[]}),
+                 rule(assumed(grouped_package_dependency(ap, q, [Below2]):install?{Masked}))-(dep(0, [])?{[]}),
+                 assumed(rule(qtest://'ap/a-1':run))-(dep(-1, [])?{[]})],
+                TwoMasked),
+  heuristic:proof_cost(OneInThree, CostOne),
+  heuristic:proof_cost(TwoInTwo, CostTwo),
+  heuristic:proof_cost(TwoMasked, CostMasked),
+  CostOne == cost(1, 0, 0, 0, 3),
+  CostTwo == cost(2, 0, 0, 0, 2),
+  CostMasked == cost(0, 2, 0, 1, 2),
+  % Fewer conflicts beat fewer entries; what the user can configure
+  % away beats what cannot be satisfied, whatever the numbers.
+  CostOne @< CostTwo,
+  CostMasked @< CostOne.
+
+test(no_alternatives_for_one_conflict_or_without_concession,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  alternative_dep(smaller, 2, Below2),
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  A = [self(qtest://'ap/a-1')],
+  B = [self(qtest://'ap/b-1')],
+  list_to_assoc([rule(assumed(grouped_package_dependency(ap, p, [Below2]):install?{A}))-(dep(0, [])?{[]}),
+                 rule(assumed(grouped_package_dependency(ap, p, [Below2]):run?{A}))-(dep(0, [])?{[]})],
+                One),
+  list_to_assoc([rule(assumed(grouped_package_dependency(ap, p, [Below2]):install?{A}))-(dep(0, [])?{[]}),
+                 rule(assumed(grouped_package_dependency(ap, p, [Below2]):install?{B}))-(dep(0, [])?{[]})],
+                Two),
+  empty_assoc(Cons),
+  prover:learn(cn_domain(ap, p, any), version_domain(any, [bound(smaller, V2)]), true),
+  % Nothing was conceded: the retry loop repaired what it met.
+  heuristic:reprove_alternatives(Two, Cons, [], []),
+  cnselect:concede_cn(ap, p),
+  % One conflict: its other side costs one assumption as well.
+  heuristic:reprove_alternatives(One, Cons, [], []),
+  heuristic:reprove_alternatives(Two, Cons, [], [overrule(ap, p, qtest://'ap/p-3')]).
+
+test(reversal_names_the_best_candidate_the_learned_domain_excludes,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  V3 = version([3], '', 4, 0, [], 0, '3'),
+  empty_assoc(Proof),
+  empty_assoc(Cons),
+  prover:learn(cn_domain(ap, p, any), version_domain(any, [bound(smaller, V3)]), true),
+  % A learned domain nobody was narrowed or conceded for is left alone.
+  cnselect:overrule_alternatives(Proof, Cons, []),
+  assertz(memo:cn_narrowed_for_(ap, q, qtest://'ap/q-2', ap, p, [])),
+  cnselect:overrule_alternatives(Proof, Cons, [overrule(ap, p, qtest://'ap/p-3')]),
+  % The package of a root target is the request, not a choice.
+  nb_setval(prover_root_goals, [qtest://'ap/p-1':run?{[]}]),
+  cnselect:overrule_alternatives(Proof, Cons, []),
+  % Also when the root target is no accepted candidate (not keyworded).
+  V9 = version([9], '', 4, 0, [], 0, '9'),
+  assertz(cache:ordered_entry(qtest, 'ap/p-9', ap, p, V9)),
+  nb_setval(prover_root_goals, [qtest://'ap/p-9':run?{[]}]),
+  findall(Listing, acceptance:accepted_keyword_candidate(install, ap, p, [], _, [], Listing), Listed),
+  \+ memberchk(qtest://'ap/p-9', Listed),
+  cnselect:overrule_alternatives(Proof, Cons, []).
+
+test(majority_names_the_candidate_most_dependencies_accept,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  V1 = version([1], '', 4, 0, [], 0, '1'),
+  alternative_dep(smaller, 2, Below2),
+  alternative_dep(greaterequal, 2, From2),
+  alternative_dep(greaterequal, 3, From3),
+  % a needs p below 2 and p-1 is selected; b, c and d need a newer p and
+  % are assumed. p-3 satisfies all three, p-2 only two.
+  list_to_assoc([rule(qtest://'ap/a-1':install)-(dep(1, [grouped_package_dependency(no, ap, p, [Below2]):install?{[]}])?{[]}),
+                 rule(qtest://'ap/b-1':install)-(dep(1, [grouped_package_dependency(no, ap, p, [From2]):install?{[]}])?{[]}),
+                 rule(qtest://'ap/c-1':install)-(dep(1, [grouped_package_dependency(no, ap, p, [From2]):install?{[]}])?{[]}),
+                 rule(qtest://'ap/d-1':install)-(dep(1, [grouped_package_dependency(no, ap, p, [From3]):install?{[]}])?{[]})],
+                Proof),
+  list_to_assoc([selected_cn(ap, p)-ordset([selected(qtest, 'ap/p-1', install, V1, [slot('0')])])], Cons),
+  % Dependencies on a package that was not conceded are not reviewed.
+  cnselect:overrule_alternatives(Proof, Cons, []),
+  cnselect:concede_cn(ap, p),
+  cnselect:conceded_demands(Proof, Demands),
+  length(Demands, 4),
+  cnselect:overrule_candidates(ap, p, Candidates),
+  cnselect:overrule_by_majority(ap, p, Candidates, Demands, Cons, Candidate, Gain),
+  Candidate == qtest://'ap/p-3',
+  Gain == 2,
+  cnselect:overrule_alternatives(Proof, Cons, [overrule(ap, p, qtest://'ap/p-3')]),
+  % The selected candidate is the majority's choice already: nothing to gain.
+  V3 = version([3], '', 4, 0, [], 0, '3'),
+  list_to_assoc([selected_cn(ap, p)-ordset([selected(qtest, 'ap/p-3', install, V3, [slot('0')])])], Cons3),
+  \+ cnselect:overrule_by_majority(ap, p, Candidates, Demands, Cons3, _, _).
+
+test(majority_counts_a_package_conceded_in_one_slot,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  V1 = version([1], '', 4, 0, [], 0, '1'),
+  V9 = version([9], '', 4, 0, [], 0, '9'),
+  alternative_dep(smaller, 2, Below2),
+  alternative_dep(greaterequal, 2, From2),
+  alternative_dep(greaterequal, 3, From3),
+  % p has a second slot in the tree that is no candidate (not keyworded):
+  % a stall about slot 0 concedes that slot, not the package.
+  assertz(cache:ordered_entry(qtest, 'ap/p-9', ap, p, V9)),
+  assertz(cache:entry_metadata(qtest, 'ap/p-9', slot, slot('9'))),
+  P1 = qtest://'ap/p-1',
+  version_domain:candidate_slot(P1, Slot),
+  heuristic:reprove_concede(cn_domain(ap, p, none, [P1], [])),
+  cnselect:cn_conceded(ap, p, Slot),
+  \+ cnselect:cn_conceded(ap, p),
+  cnselect:cn_conceded_any(ap, p),
+  % The same proof as above: three of four dependencies want a newer p.
+  list_to_assoc([rule(qtest://'ap/a-1':install)-(dep(1, [grouped_package_dependency(no, ap, p, [Below2]):install?{[]}])?{[]}),
+                 rule(qtest://'ap/b-1':install)-(dep(1, [grouped_package_dependency(no, ap, p, [From2]):install?{[]}])?{[]}),
+                 rule(qtest://'ap/c-1':install)-(dep(1, [grouped_package_dependency(no, ap, p, [From2]):install?{[]}])?{[]}),
+                 rule(qtest://'ap/d-1':install)-(dep(1, [grouped_package_dependency(no, ap, p, [From3]):install?{[]}])?{[]})],
+                Proof),
+  list_to_assoc([selected_cn(ap, p)-ordset([selected(qtest, 'ap/p-1', install, V1, [slot('0')])])], Cons),
+  % The dependencies on it are reviewed and the majority is offered.
+  % Nothing was learned for p, so no other reading names it.
+  prover:learned_snapshot(cn_domain(ap, p, _), []),
+  cnselect:conceded_demands(Proof, Demands),
+  length(Demands, 4),
+  cnselect:overrule_candidates(ap, p, Candidates),
+  cnselect:overrule_by_majority(ap, p, Candidates, Demands, Cons, Candidate, Gain),
+  Candidate == qtest://'ap/p-3',
+  Gain == 2,
+  cnselect:overrule_alternatives(Proof, Cons, Alternatives),
+  Alternatives == [overrule(ap, p, qtest://'ap/p-3')].
+
+test(overrule_starts_over_and_holds_the_package_to_one_candidate,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  Below2 = version_domain(any, [bound(smaller, V2)]),
+  % What the retry loop left behind: a learned domain, a reject, a
+  % narrowing record and a concession, for p and for an unrelated u.
+  prover:learn(cn_domain(ap, p, any), Below2, true),
+  prover:learn(cn_domain(ap, u, any), Below2, true),
+  cnselect:add_cn_domain_rejects(ap, p, none, [qtest://'ap/p-3'], true),
+  assertz(memo:cn_narrowed_for_(ap, q, qtest://'ap/q-2', ap, p, [])),
+  cnselect:concede_cn(ap, u),
+  heuristic:alternative_begin(overrule(ap, p, qtest://'ap/p-3')),
+  % All of it answered the candidate now given up.
+  \+ cnselect:cn_domain_candidate_rejected(ap, p, none, qtest://'ap/p-3'),
+  \+ memo:cn_narrowed_for_(_, _, _, _, _, _),
+  \+ cnselect:cn_conceded(ap, u),
+  prover:learned_snapshot(cn_domain(ap, u, _), []),
+  % p is held to p-3: the only candidate, learned as an exact pin, and
+  % conceded so that no conflict about it is raised.
+  cnselect:overruled_excludes(ap, p, qtest://'ap/p-2'),
+  \+ cnselect:overruled_excludes(ap, p, qtest://'ap/p-3'),
+  \+ cnselect:overruled_excludes(ap, u, qtest://'ap/p-2'),
+  cnselect:cn_conceded(ap, p),
+  prover:learned(cn_domain(ap, p, any), Pin),
+  version_domain:domain_allows_candidate(Pin, qtest://'ap/p-3'),
+  \+ version_domain:domain_allows_candidate(Pin, qtest://'ap/p-2'),
+  % An overruled package is not offered or overruled again.
+  \+ cnselect:overrule_candidates(ap, p, _),
+  \+ heuristic:alternative_begin(overrule(ap, p, qtest://'ap/p-2')),
+  % A proof that was not kept withdraws the hold, and with it the
+  % concession and the pin: p is a package like any other again.
+  heuristic:alternative_end(overrule(ap, p, qtest://'ap/p-3'), false),
+  \+ cnselect:overruled_excludes(ap, p, qtest://'ap/p-2'),
+  \+ memo:cn_overruled_(ap, p, _),
+  \+ cnselect:cn_conceded_any(ap, p),
+  prover:learned_snapshot(cn_domain(ap, p, _), []),
+  cnselect:learn_cn_domain(ap, p, any, Below2, true),
+  cnselect:overrule_candidates(ap, p, [_|_]).
+
+test(kept_overrule_survives_the_next_alternative,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  heuristic:alternative_begin(overrule(ap, p, qtest://'ap/p-3')),
+  heuristic:alternative_end(overrule(ap, p, qtest://'ap/p-3'), true),
+  cnselect:add_cn_domain_rejects(ap, u, none, [qtest://'ap/u-1'], true),
+  heuristic:alternative_begin(overrule(ap, q, qtest://'ap/q-1')),
+  \+ cnselect:cn_domain_candidate_rejected(ap, u, none, qtest://'ap/u-1'),
+  cnselect:overruled_excludes(ap, p, qtest://'ap/p-2'),
+  cnselect:overruled_excludes(ap, q, qtest://'ap/q-2'),
+  cnselect:cn_conceded(ap, p),
+  cnselect:cn_conceded(ap, q),
+  prover:learned(cn_domain(ap, p, any), PinP),
+  prover:learned(cn_domain(ap, q, any), _),
+  % Dropping the second leaves the first as it was: held, conceded and
+  % pinned.
+  heuristic:alternative_end(overrule(ap, q, qtest://'ap/q-1'), false),
+  \+ cnselect:overruled_excludes(ap, q, qtest://'ap/q-2'),
+  \+ cnselect:cn_conceded_any(ap, q),
+  prover:learned_snapshot(cn_domain(ap, q, _), []),
+  cnselect:overruled_excludes(ap, p, qtest://'ap/p-2'),
+  cnselect:cn_conceded(ap, p),
+  prover:learned(cn_domain(ap, p, any), StillP),
+  StillP == PinP.
+
+test(overrules_are_scoped_to_the_proof,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  heuristic:alternative_begin(overrule(ap, p, qtest://'ap/p-3')),
+  heuristic:init_state,
+  \+ cnselect:overruled_excludes(ap, p, qtest://'ap/p-2'),
+  heuristic:alternative_begin(overrule(ap, q, qtest://'ap/q-1')),
+  heuristic:cleanup_state,
+  cnselect:overruled_excludes(ap, p, qtest://'ap/p-2'),
+  \+ cnselect:overruled_excludes(ap, q, qtest://'ap/q-2').
+
+test(prover_keeps_the_best_proof_when_no_alternative_is_proven,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  Best = best(3, proof, model, cons, triggers),
+  % No alternatives, none left to spend: Best stands.
+  prover:prove_alternatives([], 2, t, p, m, c, tr, 20, Best, Out1),
+  Out1 == Best,
+  prover:prove_alternatives([overrule(ap, p, qtest://'ap/p-3')], 0, t, p, m, c, tr, 20, Best, Out2),
+  Out2 == Best,
+  \+ cnselect:overruled_excludes(ap, p, qtest://'ap/p-2'),
+  % An alternative the domain declines costs nothing.
+  prover:prove_alternatives([unknown_alternative], 1, t, p, m, c, tr, 20, Best, Out4),
+  Out4 == Best.
+
+test(prover_keeps_a_cheaper_alternative_and_goes_on_with_the_untried,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  % Holding p leaves two assumptions, holding q as well leaves one.
+  alternative_rules(( memo:cn_overruled_(ap, q, _) -> Body = [assumed(a)]
+                    ; memo:cn_overruled_(ap, p, _) -> Body = [assumed(a), assumed(b)]
+                    ; Body = [assumed(a), assumed(b), assumed(c)]
+                    ), Body),
+  Loop = best(cost(3, 0, 0, 0, 3), proof, model, cons, triggers),
+  prover:with_rule_module(resolving,
+    prover:prove_alternatives([overrule(ap, p, qtest://'ap/p-3'), overrule(ap, q, qtest://'ap/q-1')],
+                              2, [goal], t, t, t, t, 20, Loop, best(Cost, Proof, _, _, _))),
+  Cost == cost(1, 0, 0, 0, 1),
+  get_assoc(rule(assumed(a)), Proof, _),
+  \+ get_assoc(rule(assumed(b)), Proof, _),
+  % The proof that holds p names no alternative itself (p is the only
+  % package with a learned domain or a concession, and it is overruled):
+  % q was still tried, on top of p.
+  cnselect:overruled_excludes(ap, p, qtest://'ap/p-2'),
+  cnselect:overruled_excludes(ap, q, qtest://'ap/q-2').
+
+test(prover_drops_an_alternative_that_is_not_cheaper,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  alternative_rules(Body = [assumed(a), assumed(b)], Body),
+  Loop = best(cost(2, 0, 0, 0, 2), proof, model, cons, triggers),
+  prover:with_rule_module(resolving,
+    prover:prove_alternatives([overrule(ap, p, qtest://'ap/p-3')],
+                              2, [goal], t, t, t, t, 20, Loop, Best)),
+  % As cheap is not cheaper: the proof of the retry loop stands and the
+  % hold is withdrawn.
+  Best == Loop,
+  \+ cnselect:overruled_excludes(ap, p, qtest://'ap/p-2').
+
+test(prover_stops_at_a_proof_with_one_conflict,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  alternative_rules(( memo:cn_overruled_(ap, p, _) -> Body = [assumed(a)]
+                    ; Body = [assumed(a), assumed(b)]
+                    ), Body),
+  Loop = best(cost(2, 0, 0, 0, 2), proof, model, cons, triggers),
+  prover:with_rule_module(resolving,
+    prover:prove_alternatives([overrule(ap, p, qtest://'ap/p-3'), overrule(ap, q, qtest://'ap/q-1')],
+                              2, [goal], t, t, t, t, 20, Loop, best(Cost, _, _, _, _))),
+  Cost == cost(1, 0, 0, 0, 1),
+  % One conflict left: its other side is no cheaper, q is not tried.
+  \+ cnselect:overruled_excludes(ap, q, qtest://'ap/q-2').
+
+test(alternatives_repair_conflicts_after_a_loop_that_ran_out_of_retries,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  V3 = version([3], '', 4, 0, [], 0, '3'),
+  Below2 = version_domain(any, [bound(smaller, V2)]),
+  Below3 = version_domain(any, [bound(smaller, V3)]),
+  AboutP = cn_domain(ap, p, Below3, [qtest://'ap/p-3'], []),
+  AboutQ = cn_domain(ap, q, Below2, [qtest://'ap/q-2'], []),
+  % The retry loop: a conflict about p that stalls and is conceded, then
+  % a conflict about q that uses up the budget, so the loop ends in its
+  % final pass (reprove disabled) with two assumptions. An alternative
+  % that holds p needs conflict repair to get down to one assumption:
+  % proven with reprove still disabled it would end with three.
+  alternative_rules(( memo:cn_overruled_(ap, p, _) ->
+                        ( prover:reprove_enabled -> Body = [assumed(a)]
+                        ; Body = [assumed(a), assumed(b), assumed(c)]
+                        )
+                    ; \+ prover:reprove_enabled ->
+                        Body = [assumed(a), assumed(b)]
+                    ; \+ cnselect:cn_conceded(ap, p) ->
+                        cnselect:learn_cn_domain(ap, p, any, Below3, _),
+                        throw(prover_reprove(AboutP))
+                    ; throw(prover_reprove(AboutQ))
+                    ), Body),
+  % A second way to prove `goal`, never taken: as in the real rule set, a
+  % completed pass leaves choicepoints behind.
+  assertz(resolving:test_rule(goal, [assumed(a), assumed(b), assumed(c), assumed(d)])),
+  ( prover:reprove_enabled -> Before = on ; Before = off ),
+  prover:with_rule_module(resolving,
+    prover:with_root_goals([goal],
+      prover:with_reprove_state(
+        ( prover:prove_best([goal], t, Proof, t, _, t, _, t, _, 3),
+          heuristic:proof_cost(Proof, cost(Cost, _, _, _, _)),
+          ( cnselect:overruled_excludes(ap, p, qtest://'ap/p-2') -> Held = true ; Held = false )
+        )))),
+  Cost == 1,
+  Held == true,
+  % The proof is over: reprove is as it was, nothing is held.
+  \+ cnselect:overruled_excludes(ap, p, qtest://'ap/p-2'),
+  ( prover:reprove_enabled -> After = on ; After = off ),
+  After == Before.
+
+test(alternatives_share_one_retry_budget,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  AboutU = cn_domain(ap, u, version_domain(any, [bound(smaller, V2)]), [qtest://'ap/u-1'], []),
+  % Holding p meets the same conflict on every pass: rejected, conceded,
+  % and then out of retries. Holding q meets it once (QRetries = 1) or
+  % not at all (QRetries = 0).
+  alternative_rules(( memo:cn_overruled_(ap, q, _) ->
+                        ( nb_getval(alternative_q_retries, 1),
+                          \+ memo:cn_domain_reject_(_, _) ->
+                            throw(prover_reprove(AboutU))
+                        ; Body = [assumed(a)]
+                        )
+                    ; memo:cn_overruled_(ap, p, _) ->
+                        throw(prover_reprove(AboutU))
+                    ; Body = [assumed(a), assumed(b)]
+                    ), Body),
+  Loop = best(cost(2, 0, 0, 0, 2), proof, model, cons, triggers),
+  Alternatives = [overrule(ap, p, qtest://'ap/p-3'), overrule(ap, q, qtest://'ap/q-1')],
+  % p takes the whole budget. One pass is left for q, which is enough
+  % when q meets no conflict ...
+  nb_setval(alternative_q_retries, 0),
+  prover:with_rule_module(resolving,
+    prover:prove_alternatives(Alternatives, 2, [goal], t, t, t, t, 3, Loop, best(Cost, _, _, _, _))),
+  Cost == cost(1, 0, 0, 0, 1),
+  % ... and not when it needs a retry.
+  retractall(memo:cn_overruled_(_, _, _)),
+  nb_setval(alternative_q_retries, 1),
+  prover:with_rule_module(resolving,
+    prover:prove_alternatives(Alternatives, 2, [goal], t, t, t, t, 3, Loop, Best)),
+  Best == Loop,
+  % With the budget to itself q is proven.
+  retractall(memo:cn_overruled_(_, _, _)),
+  prover:with_rule_module(resolving,
+    prover:prove_alternatives([overrule(ap, q, qtest://'ap/q-1')], 2, [goal], t, t, t, t, 3, Loop, best(Alone, _, _, _, _))),
+  Alone == cost(1, 0, 0, 0, 1).
+
+test(error_in_an_alternative_costs_the_alternative_not_the_prove,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  alternative_rules(( memo:cn_overruled_(ap, p, _) -> atom_length(_, _)
+                    ; Body = [assumed(a), assumed(b)]
+                    ), Body),
+  Loop = best(cost(2, 0, 0, 0, 2), proof, model, cons, triggers),
+  retractall(message:catch_log_warned('alternative proof')),
+  prover:with_rule_module(resolving,
+    with_output_to(string(_),
+      prover:prove_alternatives([overrule(ap, p, qtest://'ap/p-3')],
+                                2, [goal], t, t, t, t, 20, Loop, Best))),
+  Best == Loop,
+  % Reported, and the hold is withdrawn.
+  message:catch_log_warned('alternative proof'),
+  \+ cnselect:overruled_excludes(ap, p, qtest://'ap/p-2').
+
+test(time_limit_and_request_exit_pass_through_an_alternative,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  Loop = best(cost(2, 0, 0, 0, 2), proof, model, cons, triggers),
+  forall(member(Ball, [time_limit_exceeded, request_exit(2)]),
+         ( alternative_rules(( memo:cn_overruled_(ap, p, _) -> throw(Ball)
+                             ; Body = [assumed(a), assumed(b)]
+                             ), Body),
+           catch(prover:with_rule_module(resolving,
+                   prover:prove_alternatives([overrule(ap, p, qtest://'ap/p-3')],
+                                             2, [goal], t, t, t, t, 20, Loop, _)),
+                 Caught, true),
+           Caught == Ball,
+           % The flag of the alternative does not outlive it, and neither
+           % does what the domain changed for it: the hold, the
+           % concession and the pin are withdrawn before the ball leaves
+           % (the second round could not begin otherwise).
+           nb_getval(prover_alternative_proof, false),
+           \+ memo:cn_overruled_(ap, p, _),
+           \+ cnselect:cn_conceded_any(ap, p),
+           prover:learned_snapshot(cn_domain(ap, p, _), [])
+         )).
+
+test(alternative_gets_no_final_pass,
+     [setup(alternative_setup),
+      cleanup(alternative_cleanup)]) :-
+  V2 = version([2], '', 4, 0, [], 0, '2'),
+  Info = cn_domain(ap, p, version_domain(any, [bound(smaller, V2)]), [qtest://'ap/p-3'], []),
+  % Out of retries inside an alternative: abandoned, not finished with
+  % reprove disabled.
+  nb_setval(prover_alternative_proof, true),
+  catch(prover:handle_reprove(t, p, _, m, _, c, _, tr, _, 20, 20, Info), Thrown, true),
+  nb_setval(prover_alternative_proof, false),
+  Thrown == prover_alternative_exhausted.
+
+% Synthetic rule store: `goal` is proven by the body Goal binds Body to,
+% and every assumed(_) literal is a domain assumption.
+alternative_rules(Goal, Body) :-
+  resolving:enable_test_rules,
+  retractall(resolving:test_rule(_, _)),
+  assertz(( resolving:test_rule(goal, Body) :- Goal )),
+  assertz(resolving:test_rule(assumed(_), [])).
+
+alternative_dep(Comparator, Major, package_dependency(install, no, ap, p, Comparator, Version, [], [])) :-
+  atom_number(Full, Major),
+  Version = version([Major], '', 4, 0, [], 0, Full).
+
+alternative_setup :-
+  memo:clear_caches,
+  ( nb_current(prover_root_goals, _) -> nb_delete(prover_root_goals) ; true ),
+  ( nb_current(prover_learned_constraints, _) -> nb_delete(prover_learned_constraints) ; true ),
+  ( nb_current(rules_pass_learned, _) -> nb_delete(rules_pass_learned) ; true ),
+  % Newest first, as the cache orders the entries of a package.
+  forall(member(Name-Major, [p-3, p-2, p-1, q-2, q-1, u-1]),
+         ( atom_number(Full, Major),
+           atomic_list_concat(['ap/', Name, '-', Full], Id),
+           assertz(cache:ordered_entry(qtest, Id, ap, Name, version([Major], '', 4, 0, [], 0, Full))),
+           assertz(cache:entry_metadata(qtest, Id, slot, slot('0'))),
+           assertz(cache:entry_metadata(qtest, Id, keywords, stable(amd64)))
+         )),
+  unittest:accept_stable_amd64.
+
+alternative_cleanup :-
+  resolving:disable_test_rules,
+  unittest:restore_stable_amd64,
+  forall(cache:ordered_entry(qtest, Id, ap, _, _),
+         retractall(cache:entry_metadata(qtest, Id, _, _))),
+  retractall(cache:ordered_entry(qtest, _, ap, _, _)),
+  retractall(memo:cn_overruled_(_, _, _)),
+  ( nb_current(prover_learned_constraints, _) -> nb_delete(prover_learned_constraints) ; true ),
+  ( nb_current(prover_root_goals, _) -> nb_delete(prover_root_goals) ; true ),
+  ( nb_current(rules_pass_learned, _) -> nb_delete(rules_pass_learned) ; true ),
+  ( nb_current(prover_alternative_proof, _) -> nb_delete(prover_alternative_proof) ; true ),
+  ( nb_current(alternative_q_retries, _) -> nb_delete(alternative_q_retries) ; true ),
+  memo:clear_caches.
+
+:- end_tests(alternative_proofs).
