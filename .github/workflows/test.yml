@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Ubuntu 26 ships SWI-Prolog 9.2.9. This project requires SWI 10.
+      # Ubuntu 26 ships SWI-Prolog 9. The project requires SWI 10 or newer.
       # The deb comes from Launchpad. A copy is kept in the Actions cache,
       # so a Launchpad outage does not fail the run.
       - name: Restore cached SWI-Prolog package
@@ -99,7 +99,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Ubuntu 26 ships SWI-Prolog 9.2.9. This project requires SWI 10.
+      # Ubuntu 26 ships SWI-Prolog 9. The project requires SWI 10 or newer.
       # The deb comes from Launchpad. A copy is kept in the Actions cache,
       # so a Launchpad outage does not fail the run.
       - name: Restore cached SWI-Prolog package

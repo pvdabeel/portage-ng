@@ -1,9 +1,11 @@
 #!/bin/bash
-# Ubuntu 26's archive ships SWI-Prolog 9.2.9. This project requires SWI 10.
-# The devel PPA InRelease is signed twice, and one signature is the old
-# 1024-bit Launchpad key. apt on Ubuntu 26 rejects that file, so a signed
-# apt source never becomes a candidate. Fetch the package index and the
-# swi-prolog-nox deb over HTTPS and let apt install it from disk.
+# Ubuntu 26's archive ships SWI-Prolog 9. The project requires SWI 10 or
+# newer. The devel PPA for the Ubuntu releases GitHub hosts now publishes
+# SWI 11 and no longer publishes SWI 10. The devel PPA InRelease is signed
+# twice, and one signature is the old 1024-bit Launchpad key. apt on
+# Ubuntu 26 rejects that file, so a signed apt source never becomes a
+# candidate. Fetch the package index and the swi-prolog-nox deb over
+# HTTPS and let apt install it from disk.
 #
 # A Launchpad outage would otherwise fail every run, so the deb is kept in
 # SWIPL_DEB_CACHE, a directory the workflow restores from and saves to the
@@ -42,7 +44,11 @@ if fetch "${base}/dists/${VERSION_CODENAME}/main/binary-${arch}/Packages.gz" "$i
     $0 ~ /(^|\n)Package: swi-prolog-nox(\n|$)/ {
       ver=""; fn=""; sum=""
       for (i=1; i<=NF; i++) {
-        if ($i ~ /^Version: 10\./) { sub(/^Version: /, "", $i); ver=$i }
+        if ($i ~ /^Version: /) {
+          sub(/^Version: /, "", $i); cand=$i
+          split(cand, parts, ".")
+          if (parts[1]+0 >= 10) ver=cand
+        }
         if ($i ~ /^Filename: /) { sub(/^Filename: /, "", $i); fn=$i }
         if ($i ~ /^SHA256: /) { sub(/^SHA256: /, "", $i); sum=$i }
       }
@@ -50,7 +56,7 @@ if fetch "${base}/dists/${VERSION_CODENAME}/main/binary-${arch}/Packages.gz" "$i
     }
   ') || true
   if [ -z "$ver" ] || [ -z "$file" ] || [ -z "$sha" ]; then
-    echo "No SWI-Prolog 10 candidate for ${VERSION_CODENAME} ${arch}"
+    echo "No SWI-Prolog 10 or newer candidate for ${VERSION_CODENAME} ${arch}"
     exit 1
   fi
 else
@@ -75,11 +81,11 @@ if [ -n "$file" ]; then
 fi
 
 if [ -z "$deb" ]; then
-  for kept in "$store"/swi-prolog-nox_10.*.deb; do
+  for kept in "$store"/swi-prolog-nox_*.deb; do
     if [ -s "$kept" ]; then deb="$kept"; fi
   done
   if [ -z "$deb" ]; then
-    echo "No SWI-Prolog 10 package: Launchpad did not deliver one and no copy is cached"
+    echo "No SWI-Prolog 10 or newer package: Launchpad did not deliver one and no copy is cached"
     exit 1
   fi
   echo "Launchpad did not deliver the package, installing cached ${deb##*/}"
