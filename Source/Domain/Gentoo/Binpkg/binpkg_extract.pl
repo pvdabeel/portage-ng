@@ -53,6 +53,7 @@ BUILD_IDs 8 (oniguruma=on) and 10 (oniguruma=off) during initial bring-up.
 :- module(binpkg_extract, []).
 
 :- use_module(library(uuid), [uuid/1]).
+:- use_module(library(assoc), [empty_assoc/1, get_assoc/3, put_assoc/4]).
 
 % =============================================================================
 %  BINPKG_EXTRACT declarations
@@ -611,14 +612,21 @@ binpkg_extract:strip_trailing_slash(S0, S) :-
 %! binpkg_extract:members_safe(+Kind, +Members) is semidet.
 %
 % True when every member may be extracted into a fresh destination.
-% Kind `metadata` also rejects symlink and hardlink members.
+% Kind `metadata` also rejects symlink and hardlink members. Symlink
+% targets are kept in an AVL (`library(assoc)`). Each path component is
+% looked up, and a list walk does not finish on an icon-theme image
+% (hundreds of thousands of symlinks; `x11-themes/tela-icon-theme`).
 
 binpkg_extract:members_safe(Kind, Members) :-
-  binpkg_extract:members_safe_loop(Kind, Members, []),
+  empty_assoc(Seen),
+  binpkg_extract:members_safe_loop(Kind, Members, Seen),
   !.
 
 
 %! binpkg_extract:members_safe_loop(+Kind, +Members, +Seen) is semidet.
+%
+% Seen maps a normalised symlink path to its link target. A later member
+% with the same path replaces the earlier target.
 
 binpkg_extract:members_safe_loop(_, [], _) :- !.
 binpkg_extract:members_safe_loop(Kind, [member(skip, _, _)|Rest], Seen) :-
@@ -644,7 +652,7 @@ binpkg_extract:check_member(Kind, Type, Name, Target, Seen, Seen1) :-
   binpkg_extract:resolve_components(ParentComps, Seen, _ResolvedParent),
   ( Type == symlink
   -> binpkg_extract:normalize_member_name(Name, Norm),
-     Seen1 = [symlink(Norm, Target)|Seen]
+     put_assoc(Norm, Seen, Target, Seen1)
   ;  Seen1 = Seen
   ).
 
@@ -706,7 +714,7 @@ binpkg_extract:follow_symlinks(Acc, _Seen, Acc, Depth) :-
   Depth =< 0, !, fail.
 binpkg_extract:follow_symlinks(Acc, Seen, Out, Depth) :-
   atomic_list_concat(Acc, '/', Path),
-  memberchk(symlink(Path, Target), Seen),
+  get_assoc(Path, Seen, Target),
   !,
   \+ binpkg_extract:name_unsafe(Target),
   \+ sub_atom(Target, 0, 1, _, '/'),

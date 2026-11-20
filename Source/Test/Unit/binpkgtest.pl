@@ -68,6 +68,11 @@ test(metadata_accepts_regular_files) :-
     [member(dir, metadata, ''),
      member(file, 'metadata/USE', '')]).
 
+test(icon_theme_symlink_volume) :-
+  binpkgtest:icon_theme_members(6000, Members),
+  call_with_time_limit(2,
+    binpkg_extract:members_safe(image, Members)).
+
 :- end_tests(binpkg_extract_members).
 
 
@@ -387,6 +392,27 @@ binpkgtest:rm_rf(Dir) :-
      ( var(Pid) -> true ; process_wait(Pid, _) )
   ;  true
   ).
+
+
+%! binpkgtest:icon_theme_members(+N, -Members) is det.
+%
+% N internal symlinks and N plain files under image/icons, the shape of
+% an icon-theme binpkg image. members_safe/2 must accept this without a
+% list walk over the symlink set.
+
+binpkgtest:icon_theme_members(N, Members) :-
+  findall(member(symlink, Name, Target),
+          ( between(1, N, I),
+            format(atom(Name), 'image/icons/s~d', [I]),
+            format(atom(Target), 'f~d', [I])
+          ),
+          Syms),
+  findall(member(file, Name, ''),
+          ( between(1, N, I),
+            format(atom(Name), 'image/icons/f~d', [I])
+          ),
+          Files),
+  append([member(dir, image, ''), member(dir, 'image/icons', '')|Syms], Files, Members).
 
 
 %! binpkgtest:escape_tar_setup(-State) is det.
